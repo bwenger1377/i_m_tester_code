@@ -35,16 +35,7 @@ void setup() {
   while (!Serial) delay(1000); // Wait until serial monitor is opened
   delay(3000); // 5-second delay to give the user some time to prepare
 
-  // Begin I2C communication
-  if (! lis.begin(0x18)) {   // change this to 0x19 for alternative i2c address
-    Serial.println("LIS3DH not recognized.");
-    while (1) yield();
-  }
-  Serial.println("LIS3DH found.");
-
-  // lis.setRange(LIS3DH_RANGE_4_G);   // 2, 4, 8 or 16 G!
-  Serial.print("Range = "); Serial.print(2 << lis.getRange());
-  Serial.println("G");
+  lisInitialize();
 
   // Read initial acceleration values and zero out the sensor
   Serial.println("Measuring initial accelerations. Keep board on a flat surface...");
@@ -97,7 +88,7 @@ void loop() {
         lisRead();
 
         // Update max values for x, y, and z measurements
-        updateMax();
+        lisUpdateMax();
         
         if (direction == Z) {
           if (spacePressed()) {
@@ -141,6 +132,19 @@ bool spacePressed() {
   return false;
 }
 
+void lisInitialize() {
+  // Begin I2C communication
+  if (! lis.begin(0x18)) {   // change this to 0x19 for alternative i2c address
+    Serial.println("LIS3DH not recognized.");
+    while (1) yield();
+  }
+  Serial.println("LIS3DH found.");
+
+  // lis.setRange(LIS3DH_RANGE_4_G);   // 2, 4, 8 or 16 G!
+  Serial.print("Range = "); Serial.print(2 << lis.getRange());
+  Serial.println("G");
+}
+
 // Function for reading from LIS3DH accelerometer
 void lisRead() {
   sensors_event_t event;
@@ -151,7 +155,7 @@ void lisRead() {
 }
 
 // Function that updates max values in a given direction
-void updateMax() {
+void lisUpdateMax() {
   if (vals[direction] > maxVals[direction]) {
     maxVals[direction] = vals[direction];
   }

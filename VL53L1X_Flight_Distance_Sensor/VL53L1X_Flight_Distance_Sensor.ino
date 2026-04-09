@@ -3,14 +3,14 @@
 // VL53L1X Laser Distance Sensor - Functionality Test
 
 // Include sensor library
-#include "Adafruit_VL53L1X.h"
+#include <Adafruit_VL53L1X.h>
 
 // Declare necessary additional pins for sensor function
 #define IRQ_PIN 2
 #define XSHUT_PIN 3
 
 // Create an object for sensor communication via I2C protocol
-Adafruit_VL53L1X vl53 = Adafruit_VL53L1X(XSHUT_PIN, IRQ_PIN);
+Adafruit_VL53L1X vlx = Adafruit_VL53L1X(XSHUT_PIN, IRQ_PIN);
 
 // State of loop operations
 enum State {WAITING, READING, VERDICT};
@@ -34,29 +34,7 @@ void setup() {
   while (!Serial) delay(1000); // Wait until serial monitor is opened
   delay(3000); // 3-second delay to give the user some time to prepare
 
-  // Initialize sensor communication via I2C
-  Wire.begin();
-  if (! vl53.begin(0x29, &Wire)) {
-    Serial.print(F("Error on init of VL sensor: "));
-    Serial.println(vl53.vl_status);
-    while (1)       delay(10);
-  }
-  Serial.println(F("VL53L1X sensor OK!"));
-
-  Serial.print(F("Sensor ID: 0x"));
-  Serial.println(vl53.sensorID(), HEX);
-
-  if (! vl53.startRanging()) {
-    Serial.print(F("Couldn't start ranging: "));
-    Serial.println(vl53.vl_status);
-    while (1)       delay(10);
-  }
-  Serial.println(F("Ranging started"));
-
-  // Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500ms!
-  vl53.setTimingBudget(50);
-  Serial.print(F("Timing budget (ms): "));
-  Serial.println(vl53.getTimingBudget());
+  vlxInitialize();
 
   Serial.println("Press SPACE + ENTER to begin testing.");
 }
@@ -76,7 +54,7 @@ void loop() {
         }
         break;
       case READING:
-        vl53Read();
+        vlxRead();
 
         if (spacePressed()) {
           if (proximity == NEAR) {
@@ -112,14 +90,40 @@ void loop() {
   }
 }
 
-void vl53Read() {
-  if (vl53.dataReady()) {
+void vlxInitialize() {
+  // Initialize sensor communication via I2C
+  Wire.begin();
+  if (! vlx.begin(0x29, &Wire)) {
+    Serial.print(F("Error on init of VL sensor: "));
+    Serial.println(vlx.vl_status);
+    while (1)       delay(10);
+  }
+  Serial.println(F("VL53L1X sensor OK!"));
+
+  Serial.print(F("Sensor ID: 0x"));
+  Serial.println(vlx.sensorID(), HEX);
+
+  if (! vlx.startRanging()) {
+    Serial.print(F("Couldn't start ranging: "));
+    Serial.println(vlx.vl_status);
+    while (1)       delay(10);
+  }
+  Serial.println(F("Ranging started"));
+
+  // Valid timing budgets: 15, 20, 33, 50, 100, 200 and 500ms!
+  vlx.setTimingBudget(50);
+  Serial.print(F("Timing budget (ms): "));
+  Serial.println(vlx.getTimingBudget());
+}
+
+void vlxRead() {
+  if (vlx.dataReady()) {
     // new measurement for the taking!
-    distance = vl53.distance();
+    distance = vlx.distance();
     if (distance == -1) {
       // something went wrong!
       Serial.print(F("Couldn't get distance: "));
-      Serial.println(vl53.vl_status);
+      Serial.println(vlx.vl_status);
       return;
     }
     // Serial.print(F("Distance: "));
@@ -127,7 +131,7 @@ void vl53Read() {
     // Serial.println(" mm");
 
     // data is read out, time for another reading!
-    vl53.clearInterrupt();
+    vlx.clearInterrupt();
   }
 }
 
