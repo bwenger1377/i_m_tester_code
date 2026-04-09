@@ -1,5 +1,5 @@
 // Written by Benjamin Wenger on 4-7-26
-// Last revision 4-7-26
+// Last revision 4-8-26
 // Functionality Test Code for Adafruit ADS1115 16-Bit Analog-to-Digital Converter
 
 // Include necessary libraries
@@ -25,6 +25,8 @@ bool printedSucc = false;
 int16_t adc0;  // 16-bit ADC read variable
 float voltage = 0; // Voltage reading from ADC (+/- 5.4 V)
 float ardVoltage = 0; // Voltage reading from Arduino ADC (0-5 V)
+const float posMin = 5.05;
+const float negMax = -0.1;
 
 void setup() {
   // Begin serial communication
@@ -33,7 +35,9 @@ void setup() {
   delay(3000); // 3-second delay to give the user some time to prepare
 
   // Initialize the ADS1115
-  adsInitialize();
+  if (!adsInitialize()) {
+    while(1); // Stop any further code from executing
+  }
 
   // Prompt user to begin testing
   Serial.println("Press SPACE + ENTER to begin testing.");
@@ -50,10 +54,10 @@ void loop() {
             Serial.println("Beginning test. Turn bench power supply on and set to 5.1 V. Then connect the positive lead to the A0 pin.");
             Serial.println("Press SPACE + ENTER to conclude test.");
           } else {
-            Serial.println("Beginning test. First, connect the banana plug between the + and GND terminals of the bench power supply.");
-            Serial.println("Turn bench power supply on and set to 1.0 V.");
-            Serial.println("Then connect the grounded terminal to GND and wire the - terminal of the power supply to the A0 pin on the ADS1115.");
-            Serial.println("Remove hand from above sensor, then press SPACE + ENTER to conclude test.");
+            Serial.println("Beginning test. First, turn off the power supply.");
+            Serial.println("Connect the banana plug between the + and GND terminals of the bench power supply. Turn power supply back on and set to 0.5 V.");
+            Serial.println("Then connect the grounded terminal to GND, and the - terminal of the power supply to the A0 pin on the ADS1115.");
+            Serial.println("Press SPACE + ENTER to conclude test.");
           }
         }
         break;
@@ -62,16 +66,17 @@ void loop() {
         adsRead();
 
         // Read from the Arduino analog pin for comparison
-        ardVoltage = analogRead(A0) * (5/1023); // Multiplier converts raw value to voltage
+        ardVoltage = analogRead(A0) * (5.0f / 1023.0f); // Multiplier converts raw value to voltage
 
         if (spacePressed()) {
           if (level == POS) {
             level = NEG;
-            if (voltage < 5.05) {
-              if (ardVoltage >= 5.0) {
+            if (voltage < posMin) {
+              if (ardVoltage <= 5.0) {
                 is_working = false;
                 status = VERDICT;
               }
+              Serial.println(ardVoltage);
             } else {
               Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
               status = WAITING;
@@ -79,10 +84,8 @@ void loop() {
           } else {
             status = VERDICT;
             Serial.println("Test complete.");
-            if (voltage > -1.0) {
-              if (ardVoltage <= 0.1) {
-                is_working = false;
-              }
+            if ((voltage > negMax) && (ardVoltage <= 0.1)) {
+              is_working = false;
             }
           }
         }
@@ -109,18 +112,19 @@ void adsRead() {
 
   // Convert raw value to voltage in Volts
   voltage = (adc0 * multiplier) / 1000;
-  Serial.print("\tVoltage: ");
-  Serial.print(voltage, 4); // Print voltage with 4 decimal places
-  Serial.println("V");
+  // Serial.print("\tVoltage: ");
+  // Serial.print(voltage, 4); // Print voltage with 4 decimal places
+  // Serial.println("V");
 }
 
 // Function called to initialize the ADS1115
-void adsInitialize() {
-  ads.begin();
+bool adsInitialize() {
   if (!ads.begin()) {
     Serial.println("ADS1115 not found.");
+    return false;
   }
   Serial.println("ADS1115 initialized.");
+  return true;
 }
 
 // Helper function to determine if spacebar was pressed
