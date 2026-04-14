@@ -1,9 +1,9 @@
 // Written by Benjamin Wenger on 4-9-26
-// Last revision 4-9-26
+// Last revision 4-14-26
 // Functionality test code for I2C sensors
 
 /*
-General I2C Wiring Instructions:
+General I2C Sensor Wiring Instructions:
 1. Vin --> Arduino 5V
 2. GND --> Arduino GND
 3. SDA --> Arduino SDA
@@ -65,8 +65,9 @@ bool is_working = true;
 bool printedFail = false;
 bool printedSucc = false;
 
-// True if all sensors have been tested
-bool allTested = false;
+// Sensor selection
+enum Select {ADS1115,LIS3DH,VL53L1X};
+Select sensor = ADS1115;
 
 // --------- ADS1115 --------- //
 
@@ -132,8 +133,79 @@ void setup() {
 
 // =========================== FINITE STATE MACHINE =========================== //
 void loop() {
-  // put your main code here, to run repeatedly:
+  if (!printedFail) {
+    // run the waiting/reading/verdict loop for this sensor with all necessary functions
+    switch (status) {
+      case WAITING: // waiting for user input
+        if (spacePressed()) {
+          status = READING; // will execute code in second case next time loop repeats
+          switch (sensor) {
+            // Instruct user on testing process
+            case ADS1115: adsPrompt(); break;
+            case LIS3DH: lisPrompt(); break;
+            case VL53L1X: vlxPrompt(); break;
+          }
+        }
+        break;
+      case READING:
+        switch (sensor) {
+          case ADS1115:
+            // Read from the ADS1115
+            adsRead();
 
+            // Read from the Arduino analog pin for comparison
+            ardVoltage = analogRead(A0) * (5.0f / 1023.0f); // Multiplier converts raw value to voltage
+
+            // Determine whether the sensor is working
+            if (spacePressed()) {
+              adsDecide();
+            }
+            break;
+          case LIS3DH:
+            // Read from the LIS3DH
+            lisRead();
+
+            // Update max values for x, y, and z measurements
+            lisUpdateMax();
+
+            if (spacePressed()) {
+              if (direction == Z) {
+                status = VERDICT;
+                Serial.println("Testing complete.");
+                lisVerdict();
+              } else {
+                status = WAITING;
+                Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+                lisVerdict();
+                direction = (Axis)(direction + 1);
+              }
+            }
+            break;
+          case VL53L1X:
+            // Read from the VL53L1X
+            vlxRead();
+
+            if (spacePressed()) {
+              vlxDecide();
+            }
+            break;
+        }
+        break;
+      case VERDICT:
+        // Print whether or not the sensor is working
+        giveVerdict();
+        break;
+    }
+  } else {
+    // ask user if they'd like to test another sensor
+    if (charPressed() == 'y') {
+      printedFail = 0;
+      printedSucc = 0;
+      // ask which sensor they'd like to test
+      // if or case statement here
+        // adjust value of sensor enum as needed
+    }
+  }
 }
 
 // =========================== RELATED FUNCTIONS =========================== //
@@ -152,6 +224,33 @@ bool spacePressed() {
   return false;
 }
 
+// Determine what key a user pressed
+char charPressed() {
+  if(Serial.available()) {
+    char c = Serial.read();
+    while (Serial.available()) {
+      Serial.read(); // clear buffer
+    }
+    return c;
+  }
+  return false;
+}
+
+// Give a verdict on sensor functionality
+void giveVerdict() {
+  if (!printedSucc) {
+    if (is_working) {
+      Serial.print(sensor);
+      Serial.println(" is working.");
+      printedSucc = true;
+    } else {
+      Serial.print(sensor);
+      Serial.println(" is not working.");
+      printedFail = true;
+    }
+  }
+}
+
 // --------- ADS1115 --------- //
 
 // Initialize ADS1115
@@ -164,6 +263,19 @@ bool adsInitialize() {
   return true;
 }
 
+// Instruct user on how to test ADS1115
+void adsPrompt() {
+  if (level == POS) {
+    Serial.println("Beginning test. Turn bench power supply on and set to 5.1 V. Then connect the positive lead to the A0 pin.");
+    Serial.println("Press SPACE + ENTER to conclude test.");
+  } else {
+    Serial.println("Beginning test. First, turn off the power supply.");
+    Serial.println("Connect the banana plug between the + and GND terminals of the bench power supply. Turn power supply back on and set to 0.5 V.");
+    Serial.println("Then connect the grounded terminal to GND, and the - terminal of the power supply to the A0 pin on the ADS1115.");
+    Serial.println("Press SPACE + ENTER to conclude test.");
+  }
+}
+
 // Read from ADS1115
 void adsRead() {
   adc0 = ads.readADC_SingleEnded(0); // Read raw value from channel 0
@@ -173,6 +285,29 @@ void adsRead() {
   // Serial.print("\tVoltage: ");
   // Serial.print(voltage, 4); // Print voltage with 4 decimal places
   // Serial.println("V");
+}
+
+// Decide if ADS1115 is working
+void adsDecide() {
+  if (level == POS) {
+    level = NEG;
+    if (voltage < posMin) {
+      if (ardVoltage <= 5.0) {
+        is_working = false;
+        status = VERDICT;
+      }
+      Serial.println(ardVoltage);
+    } else {
+      Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+      status = WAITING;
+    }
+  } else {
+    status = VERDICT;
+    Serial.println("Test complete.");
+    if ((voltage > negMax) && (ardVoltage <= 0.1)) {
+      is_working = false;
+    }
+  }
 }
 
 // --------- LIS3DH --------- //
@@ -190,6 +325,22 @@ void lisInitialize() {
   Serial.print("Range = "); Serial.print(2 << lis.getRange());
   Serial.println("G");
 }
+
+void lisPrompt() {
+  switch (direction) {
+  // Test x,y,z directions in that order to ensure all are working.
+  case X: // x-direction
+    Serial.println("Move shield rapidly forward and backward.");
+    break;
+  case Y: // y-direction
+    Serial.println("Move shield rapidly from left to right.");
+    break;
+  case Z: // z-direction
+    Serial.println("Move board rapidly upward and downward.");
+    break;
+  }
+}
+
 
 // Read from LIS3DH
 void lisRead() {
@@ -251,6 +402,14 @@ void vlxInitialize() {
   Serial.println(vlx.getTimingBudget());
 }
 
+void vlxPrompt() {
+  if (proximity == NEAR) {
+    Serial.println("Beginning test. Place hand 6 inches above sensor, then press SPACE + ENTER to conclude test.");
+  } else {
+    Serial.println("Beginning test. Remove hand from above sensor, then press SPACE + ENTER to conclude test.");
+  }
+}
+
 // Read from VL53L1X
 void vlxRead() {
   if (vlx.dataReady()) {
@@ -268,5 +427,24 @@ void vlxRead() {
 
     // data is read out, time for another reading!
     vlx.clearInterrupt();
+  }
+}
+
+void vlxDecide() {
+  if (proximity == NEAR) {
+    proximity = FAR;
+    if (distance >= 250 || distance <= 50) {
+      is_working = false;
+      status = VERDICT;
+    } else {
+      Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+      status = WAITING;
+    }
+  } else {
+    status = VERDICT;
+    Serial.println("Test complete.");
+    if (distance < 1000) {
+      is_working = false;
+    }
   }
 }

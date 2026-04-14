@@ -89,21 +89,19 @@ void loop() {
 
         // Update max values for x, y, and z measurements
         lisUpdateMax();
-        
-        if (direction == Z) {
-          if (spacePressed()) {
+
+        if (spacePressed()) {
+          if (direction == Z) {
             status = VERDICT;
             Serial.println("Testing complete.");
             lisVerdict();
-          }
-        } else {
-          if (spacePressed()) {
+          } else {
             status = WAITING;
             Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
             lisVerdict();
             direction = (Axis)(direction + 1);
           }
-        }
+        }  
         break;
       case VERDICT:
         if (!printedSucc) {
