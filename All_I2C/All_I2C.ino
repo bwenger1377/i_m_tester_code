@@ -63,6 +63,9 @@ bool is_working = true;
 // True if all desired sensors for the current test run have been initialized
 bool all_init = false;
 
+// List of sensors to be tested in current test run
+bool to_test[3] = {0,0,0}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
+
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
 bool printedSucc = false;
@@ -132,12 +135,16 @@ void setup() {
   while (!Serial) delay(1000); // Wait until serial monitor is opened
   delay(3000); // 3-second delay to give the user some time to prepare
 
-  if (!all_init) {
-    Serial.print("Would you like to test the "); Serial.print(sensor); Serial.println("in this test run? (y/n): ");
-    if (charPressed() == 'y') {
+  while (!all_init) {
+    Serial.print("Would you like to test the "); Serial.print(sensor); Serial.println(" in this test run? (y/n): ");
+    if (charPressed() == 'y') { // Need to figure this out; currently, it's going to quickly skip through everything, increment sensor, and then 
+      to_test[sensor] = 1;
       switch (sensor) {
         case ADS1115: 
-          adsInitialize();
+          if (!adsInitialize()) {
+            Serial.print(sensor); Serial.println(" failed to initialize. Check connections, then try again.");
+            while(1); 
+          }
           break;
         case LIS3DH: 
           lisInitialize();
@@ -146,7 +153,10 @@ void setup() {
           vlxInitialize();
           break;
       }
+      Serial.print(sensor); Serial.println(" initialized.");
     }
+    // Figure out how to say all_init is true
+    sensor += 1; // Increment the current sensor being initialized
   }
 
   /*
