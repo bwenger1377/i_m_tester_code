@@ -1,5 +1,5 @@
 // Written by Benjamin Wenger on 4-9-26
-// Last revision 4-14-26
+// Last revision 4-15-26
 // Functionality test code for I2C sensors
 
 /*
@@ -32,7 +32,6 @@ Sensors:
   b) Related functions:
     - vlxInitialize()
     - vlxRead()
-
 */
 
 // =========================== LIBRARIES =========================== //
@@ -60,6 +59,9 @@ State status = WAITING;
 
 // True if sensor is working
 bool is_working = true;
+
+// True if all desired sensors for the current test run have been initialized
+bool all_init = false;
 
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
@@ -129,6 +131,42 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) delay(1000); // Wait until serial monitor is opened
   delay(3000); // 3-second delay to give the user some time to prepare
+
+  if (!all_init) {
+    Serial.print("Would you like to test the "); Serial.print(sensor); Serial.println("in this test run? (y/n): ");
+    if (charPressed() == 'y') {
+      switch (sensor) {
+        case ADS1115: 
+          adsInitialize();
+          break;
+        case LIS3DH: 
+          lisInitialize();
+          break;
+        case VL53L1X: 
+          vlxInitialize();
+          break;
+      }
+    }
+  }
+
+  /*
+  if not all of the sensors have been initialized
+    Ask user whether they would like to test the sensor in question
+    if yes
+      initialize that sensor
+      if the sensor doesn't initialize
+        prompt user to unplug arduino and check connections then try again
+        infinite loop of doing nothing
+      otherwise
+        tell them the sensor is working
+        add the sensor to a running list of sensors that will be tested during the run
+    increment the sensor enum (regardless of whether answer is yes or no)
+  otherwise
+    set the current sensor being tested to the first one in the list of ones the user desires to test
+  */
+
+  // Prompt user input to begin testing
+  Serial.println("Press SPACE + ENTER to begin testing.");
 }
 
 // =========================== FINITE STATE MACHINE =========================== //
