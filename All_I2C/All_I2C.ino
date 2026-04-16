@@ -57,6 +57,8 @@ Sensors:
 enum State {WAITING,READING,VERDICT};
 State status = WAITING;
 
+char c; // Character inputted to the serial monitor by the user
+
 // True if sensor is working
 bool is_working = true;
 
@@ -64,7 +66,7 @@ bool is_working = true;
 bool all_init = false;
 
 // List of sensors to be tested in current test run
-bool to_test[3] = {0,0,0}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
+bool to_test[3] = {false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
 
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
@@ -73,6 +75,9 @@ bool printedSucc = false;
 // Sensor selection
 enum Select {ADS1115,LIS3DH,VL53L1X};
 Select sensor = ADS1115;
+
+// True if all desired sensors have been tested
+bool all_tested = false;
 
 // --------- ADS1115 --------- //
 
@@ -137,7 +142,8 @@ void setup() {
 
   while (!all_init) {
     Serial.print("Would you like to test the "); Serial.print(sensor); Serial.println(" in this test run? (y/n): ");
-    if (charPressed() == 'y') { // Need to figure this out; currently, it's going to quickly skip through everything, increment sensor, and then 
+    c = charPressed();
+    if (c == 'y') { 
       to_test[sensor] = 1;
       switch (sensor) {
         case ADS1115: 
@@ -154,26 +160,16 @@ void setup() {
           break;
       }
       Serial.print(sensor); Serial.println(" initialized.");
+      sensor = static_cast<Select>(sensor + 1);
+    } else if (c == 'n') {
+      sensor = static_cast<Select>(sensor + 1);
     }
-    // Figure out how to say all_init is true
-    sensor += 1; // Increment the current sensor being initialized
+    if (sensor > VL53L1X) {
+      all_init = true; // This will end the while loop
+    }
   }
 
-  /*
-  if not all of the sensors have been initialized
-    Ask user whether they would like to test the sensor in question
-    if yes
-      initialize that sensor
-      if the sensor doesn't initialize
-        prompt user to unplug arduino and check connections then try again
-        infinite loop of doing nothing
-      otherwise
-        tell them the sensor is working
-        add the sensor to a running list of sensors that will be tested during the run
-    increment the sensor enum (regardless of whether answer is yes or no)
-  otherwise
-    set the current sensor being tested to the first one in the list of ones the user desires to test
-  */
+  nextSensor(); // Set the sensor to be tested
 
   // Prompt user input to begin testing
   Serial.println("Press SPACE + ENTER to begin testing.");
@@ -181,96 +177,93 @@ void setup() {
 
 // =========================== FINITE STATE MACHINE =========================== //
 void loop() {
-  if (!printedFail) {
-    // run the waiting/reading/verdict loop for this sensor with all necessary functions
-    switch (status) {
-      case WAITING: // waiting for user input
-        if (spacePressed()) {
-          status = READING; // will execute code in second case next time loop repeats
-          switch (sensor) {
-            // Instruct user on testing process
-            case ADS1115: adsPrompt(); break;
-            case LIS3DH: lisPrompt(); break;
-            case VL53L1X: vlxPrompt(); break;
+  c = charPressed();
+  if (!all_tested) {
+    if (!printedFail) {
+      // run the waiting/reading/verdict loop for this sensor with all necessary functions
+      switch (status) {
+        case WAITING: // waiting for user input
+          if (c == ' ') {
+            status = READING; // will execute code in second case next time loop repeats
+            switch (sensor) {
+              // Instruct user on testing process
+              case ADS1115: adsPrompt(); break;
+              case LIS3DH: lisPrompt(); break;
+              case VL53L1X: vlxPrompt(); break;
+            }
           }
-        }
-        break;
-      case READING:
-        switch (sensor) {
-          case ADS1115:
-            // Read from the ADS1115
-            adsRead();
+          break;
+        case READING:
+          switch (sensor) {
+            case ADS1115:
+              // Read from the ADS1115
+              adsRead();
 
-            // Read from the Arduino analog pin for comparison
-            ardVoltage = analogRead(A0) * (5.0f / 1023.0f); // Multiplier converts raw value to voltage
+              // Read from the Arduino analog pin for comparison
+              ardVoltage = analogRead(A0) * (5.0f / 1023.0f); // Multiplier converts raw value to voltage
 
-            // Determine whether the sensor is working
-            if (spacePressed()) {
-              adsDecide();
-            }
-            break;
-          case LIS3DH:
-            // Read from the LIS3DH
-            lisRead();
-
-            // Update max values for x, y, and z measurements
-            lisUpdateMax();
-
-            if (spacePressed()) {
-              if (direction == Z) {
-                status = VERDICT;
-                Serial.println("Testing complete.");
-                lisVerdict();
-              } else {
-                status = WAITING;
-                Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
-                lisVerdict();
-                direction = (Axis)(direction + 1);
+              // Determine whether the sensor is working
+              if (c == ' ') {
+                adsDecide();
               }
-            }
-            break;
-          case VL53L1X:
-            // Read from the VL53L1X
-            vlxRead();
+              break;
+            case LIS3DH:
+              // Read from the LIS3DH
+              lisRead();
 
-            if (spacePressed()) {
-              vlxDecide();
-            }
-            break;
-        }
-        break;
-      case VERDICT:
-        // Print whether or not the sensor is working
-        giveVerdict();
-        break;
+              // Update max values for x, y, and z measurements
+              lisUpdateMax();
+
+              if (c == ' ') {
+                if (direction == Z) {
+                  status = VERDICT;
+                  Serial.println("Testing complete.");
+                  lisVerdict();
+                } else {
+                  status = WAITING;
+                  Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+                  lisVerdict();
+                  direction = (Axis)(direction + 1);
+                }
+              }
+              break;
+            case VL53L1X:
+              // Read from the VL53L1X
+              vlxRead();
+
+              if (c == ' ') {
+                vlxDecide();
+              }
+              break;
+          }
+          break;
+        case VERDICT:
+          // Print whether or not the sensor is working
+          giveVerdict();
+          nextSensor();
+          if (!all_tested) {
+            Serial.println("Would you like to test the next sensor? (y/n): ");
+          }
+          break;
+      }
+    } else if (c == 'y') {
+      // Reset important loop logic for next sensor test
+      reset4next();
+      
+      Serial.println("Press SPACE + ENTER to begin testing.");
+    } else if (c == 'n') {
+      Serial.println("All tests completed. Push reset button to run another round of tests.");
+      while(1);
     }
   } else {
-    // ask user if they'd like to test another sensor
-    if (charPressed() == 'y') {
-      printedFail = 0;
-      printedSucc = 0;
-      // ask which sensor they'd like to test
-      // if or case statement here
-        // adjust value of sensor enum as needed
-    }
+    Serial.println("All tests completed. Push reset button to run another round of tests.");
+    while(1);
   }
 }
 
 // =========================== RELATED FUNCTIONS =========================== //
 
 // --------- GENERAL --------- //
-
-// Determine if spacebar pressed
-bool spacePressed() {
-  if (Serial.available()) {
-    char c = Serial.read();
-    while (Serial.available()) {
-      Serial.read(); // clear buffer
-    }
-    return c == ' '; // true if the character read & stored is a space
-  }
-  return false;
-}
 
 // Determine what key a user pressed
 char charPressed() {
@@ -281,7 +274,22 @@ char charPressed() {
     }
     return c;
   }
-  return false;
+  return 'f'; // return f for false
+}
+
+// Determine which sensor is next from the list of sensors to test
+void nextSensor() {
+  all_tested = true;
+  // Iterate through the to_test array until we find a sensor that will be tested
+  for (int ii = 0; ii < 3; ii++) {
+    if (to_test[ii] == true) {
+      sensor = static_cast<Select>(ii); // ii should correspond to the index of the sensor enum (ex. 0 corresponds to ADS1115)
+      to_test[ii] = false; // eliminates repeated tests of the same sensor
+      all_tested = false;
+      break;
+    }
+  }
+  all_tested = true; // will only execute if no more entries in to_test are true
 }
 
 // Give a verdict on sensor functionality
@@ -297,6 +305,17 @@ void giveVerdict() {
       printedFail = true;
     }
   }
+}
+
+// Function that resets important loop logic for next sensor
+void reset4next() {
+  is_working = true;
+  printedFail = false;
+  printedSucc = false;
+  status = WAITING;
+  level = POS;
+  direction = X;
+  proximity = NEAR;
 }
 
 // --------- ADS1115 --------- //
