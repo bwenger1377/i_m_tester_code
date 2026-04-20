@@ -1,6 +1,6 @@
-// Written by Benjamin Wenger on 4-9-26
-// Last revision 4-15-26
-// Functionality test code for I2C sensors
+// Written by Benjamin Wenger on 4-20-26
+// Last revision 4-20-26
+// Functionality test code for I2C and SPI sensors
 
 /*
 General I2C Sensor Wiring Instructions:
@@ -9,15 +9,23 @@ General I2C Sensor Wiring Instructions:
 3. SDA --> Arduino SDA
 4. SCL --> Arduino SCL
 
+General SPI Wiring Instructions:
+1. Vin --> Arduino 5V
+2. GND --> Arduino GND
+3. CS --> Arduino D10
+4. MOSI --> Arduino D11
+5. MISO --> Arduino D12
+6. SCLK --> Arduino D13
+
 Sensors:
-1. ADS1115 16-bit Analog-to-Digital Converter (ADS)
+1. Adafruit ADS1115 16-bit Analog-to-Digital Converter (ADS)
   a) Wiring instructions
     - GND --> Power Supply GND also
     - A0 --> Arduino A0 pin & Power Supply as instructed
   b) Related functions:
     - adsInitialize()
     - adsRead()
-2. LIS3DH 3-axis Accelerometer (LIS)
+2. Adafruit LIS3DH 3-axis Accelerometer (LIS)
   a) Wiring instructions:
     - None for this sensor
   b) Related functions:
@@ -25,13 +33,20 @@ Sensors:
     - lisRead()
     - updateMax()
     - lisVerdict()
-3. VL53L1X Flight Distance Sensor (VLX)
+3. Adafruit VL53L1X Flight Distance Sensor (VLX)
   a) Wiring instructions:
     - IRQ_PIN --> Arduino digital pin
     - XSHUT_PIN --> Arduino digital pin
   b) Related functions:
     - vlxInitialize()
     - vlxRead()
+4. Adafruit SD Card Breakout Board + (SD)
+  a) Wiring instructions: 
+    - See General SPI Wiring Instructions
+  b) Related functions:
+    - sdInitialize()
+  c) Additional notes:
+    - Assume FAT32 format (anything else is outside the scope of this test)
 */
 
 // =========================== LIBRARIES =========================== //
@@ -48,6 +63,10 @@ Sensors:
 
 // --------- VL53L1X --------- //
 #include <Adafruit_VL53L1X.h>
+
+// --------- SD Card Breakout Board + --------- //
+#include <SPI.h>
+#include <SD.h>
 
 // =========================== VARIABLES =========================== //
 
@@ -66,14 +85,14 @@ bool is_working = true;
 bool all_init = false;
 
 // List of sensors to be tested in current test run
-bool to_test[3] = {false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
+bool to_test[4] = {false,false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
 
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
 bool printedSucc = false;
 
 // Sensor selection
-enum Select {ADS1115,LIS3DH,VL53L1X};
+enum Select {ADS1115,LIS3DH,VL53L1X,BREAKOUT};
 Select sensor = ADS1115;
 
 // True if all desired sensors have been tested
@@ -133,6 +152,11 @@ Proximity proximity = NEAR;
 // Distance measurement from VL53L1X (in mm)
 int16_t distance;
 
+// --------- SD Card Breakout Board + --------- //
+
+// CS Pin assignment
+const int chipSelect = 10;
+
 // =========================== SETUP =========================== //
 void setup() {
   // Begin serial communication
@@ -158,13 +182,16 @@ void setup() {
         case VL53L1X: 
           vlxInitialize();
           break;
+        case BREAKOUT:
+          sdInitialize();
+          break;
       }
       Serial.print(sensor); Serial.println(" initialized.");
       sensor = static_cast<Select>(sensor + 1);
     } else if (c == 'n') {
       sensor = static_cast<Select>(sensor + 1);
     }
-    if (sensor > VL53L1X) {
+    if (sensor > BREAKOUT) {
       all_init = true; // This will end the while loop
     }
   }
@@ -235,6 +262,10 @@ void loop() {
                 vlxDecide();
               }
               break;
+            case BREAKOUT:
+              sdTest(); // Test the sensor
+              sdDecide(); // Determine whether the sensor is working
+              break;
           }
           break;
         case VERDICT:
@@ -279,7 +310,7 @@ char charPressed() {
 void nextSensor() {
   all_tested = true;
   // Iterate through the to_test array until we find a sensor that will be tested
-  for (int ii = 0; ii < 3; ii++) {
+  for (int ii = 0; ii < 4; ii++) {
     if (to_test[ii] == true) {
       sensor = static_cast<Select>(ii); // ii should correspond to the index of the sensor enum (ex. 0 corresponds to ADS1115)
       to_test[ii] = false; // eliminates repeated tests of the same sensor
@@ -512,4 +543,65 @@ void vlxDecide() {
       is_working = false;
     }
   }
+}
+
+// --------- SD Card Breakout Board + --------- //
+
+// Initialize SD Card Breakout Board
+void sdInitialize() {
+  Serial.print("Initializing SD card... ");
+  pinMode(chipSelect, OUTPUT); // Set the CS pin (Arduino 10) as an output from the Mega
+
+  // Alert user if sensor fails to connect
+  if (!SD.begin(chipSelect)) {
+    Serial.println("initialization failed!");
+    is_working = false;
+    while(1); // REMOVE THIS IN MERGED CODE FILES
+  }
+
+  Serial.println("done.");
+}
+
+// Test SD Card Breakout Board
+void sdTest() {
+  // Open or create a file in the working directory
+  File myFile = SD.open("test.txt", FILE_WRITE);
+
+  // Write to a file on the SD card from the sensor
+  if (myFile) {
+    Serial.print("Writing to test.txt...");
+    myFile.println("Hello from SD card!");
+    myFile.close();  // very important!
+    Serial.println("done.");
+  } else {
+    Serial.println("Error opening test.txt.");
+  }
+
+  // Read from the file on the SD card to the sensor
+  myFile = SD.open("test.txt");
+  if (myFile) {
+    Serial.println("Content of test.txt:");
+    while (myFile.available()) {
+      Serial.write(myFile.read());
+    }
+    myFile.close();
+  } else {
+    Serial.println("Error opening test.txt.");
+  }
+  Serial.println("If content of test.txt is Hello from SD card! then the sensor is working.");
+}
+
+// Determine (with user input) whether the sensor is working
+void sdDecide() {
+  Serial.println("Is the sensor working? (y/n): ");
+
+  // Wait to move on until the user has confirmed whether or not the sensor is working
+  while (c != 'y' || c != 'n') {
+    c = charPressed();
+  }
+
+  if (c == 'n') {
+    is_working = false;
+  }
+  status = VERDICT;
 }

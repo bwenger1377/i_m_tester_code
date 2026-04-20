@@ -14,16 +14,9 @@ Will write something to the card, then read it from the card and ensure that the
 // Declare assignment for chip select (CS) pin
 const int chipSelect = 10;
 
-// Declare variable to hold file content from SD card
-std::string contents = "Hello from SD Card!";
-
 // State of loop operations
 enum State {WAITING, TESTING, VERDICT};
 State status = WAITING;
-
-// Stage of sensor testing
-enum SdStage {WRITING,READING};
-SdStage sdStage = WRITING;
 
 // Variables to indicate if sensor works (default is yes)
 bool is_working = true;
@@ -36,17 +29,7 @@ void setup() {
   while (!Serial) delay(1000); // Wait until serial monitor is opened
   delay(3000); // 3-second delay to give the user some time to prepare
 
-  // Initialize SD card
-  Serial.print("Initializing SD card... ");
-  pinMode(chipSelect, OUTPUT);
-
-  // Alert user if sensor fails to connect
-  if (!SD.begin(chipSelect)) {
-    Serial.println("initialization failed!");
-    return;
-  }
-
-  Serial.println("done.");
+  sdInitialize();
 
   // Prompt user to begin the test; wait for input before proceeding
   Serial.println("Press SPACE + ENTER to begin test.");
@@ -93,4 +76,19 @@ bool spacePressed() {
     return c == ' '; // true if the first character read was a space (this function is returning a boolean)
   }
   return false;
+}
+
+// Initialize SD Card Breakout Board
+void sdInitialize() {
+  Serial.print("Initializing SD card... ");
+  pinMode(chipSelect, OUTPUT); // Set the CS pin (Arduino 10) as an output from the Mega
+
+  // Alert user if sensor fails to connect
+  if (!SD.begin(chipSelect)) {
+    Serial.println("initialization failed!");
+    is_working = false;
+    while(1); // REMOVE THIS IN MERGED CODE FILES
+  }
+
+  Serial.println("done.");
 }
