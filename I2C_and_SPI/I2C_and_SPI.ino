@@ -81,6 +81,11 @@ Sensors:
     - adxlRead()
     - adxlDecide()
     - adxlVerdict()
+9. Runeskee Strain Gauge
+  a) Wiring instructions:
+    - A0 --> Arduino analog pin
+  b) Related functions:
+    - 
 */
 
 // ============================================================================================================ LIBRARIES ============================================================================================================ //
@@ -221,18 +226,30 @@ int s_prev = 0; // Previous sensor reading
 
 // ------------------------------ HC-SR04 ------------------------------ //
 
-// Declare necessary additional pins for sensor function
+// Pin assignments
 const int trig_pin = 48;
 const int echo_pin = 46;
 
-// Distance measurement from 
+// Distance measurement variables
 float hcTiming = 0.0;
 float hcDist = 0.0;
 
 // ------------------------------ ADXL335 ------------------------------ //
+
+// Pin assignments
 const int xPin = A5;
 const int yPin = A4;
 const int zPin = A3;
+
+// ------------------------------ STRAIN ------------------------------ //
+
+// Pin assignments
+const int strainPin = A0;    // Analog pin for module output
+int rawValue = 0;      // Variable to store raw reading
+
+// State of loading (2 tests--one loaded, one unloaded)
+enum Loading {NO,YES};
+Loading loading = NO;
 
 // ============================================================================================================ SETUP ============================================================================================================ //
 void setup() {
