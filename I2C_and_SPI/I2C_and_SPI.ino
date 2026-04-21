@@ -4,18 +4,14 @@
 
 /*
 General I2C Sensor Wiring Instructions:
-1. Vin --> Arduino 5V
-2. GND --> Arduino GND
-3. SDA --> Arduino SDA
-4. SCL --> Arduino SCL
+1. SDA --> Arduino SDA
+2. SCL --> Arduino SCL
 
 General SPI Wiring Instructions:
-1. Vin --> Arduino 5V
-2. GND --> Arduino GND
-3. CS --> Arduino D10
-4. MOSI --> Arduino D11
-5. MISO --> Arduino D12
-6. SCLK --> Arduino D13
+1. CS --> Arduino D10
+2. MOSI --> Arduino D11
+3. MISO --> Arduino D12
+4. SCLK --> Arduino D13
 
 Sensors:
 1. Adafruit ADS1115 16-bit Analog-to-Digital Converter (ADS)
@@ -60,9 +56,15 @@ Sensors:
     - pecDecide()
 6. SY-M213 Hall Effect Module (HALL)
   a) Wiring instructions:
-    - Vin --> Arduino 5V
-    - GND --> Arduino GND
     - D0 --> Arduino digital pin
+  b) Related functions:
+    - hallInitialize()
+    - hallPrompt()
+    - hallDecide()
+7. HC-SR04 Ultrasonic Sensor (HCSR04)
+  a) Wiring instructions:
+    - Trig --> Arduino digital pin
+    - Echo --> Arduino digital pin
   b) Related functions:
     - 
 */
@@ -103,14 +105,14 @@ bool is_working = true;
 bool all_init = false;
 
 // List of sensors to be tested in current test run
-bool to_test[6] = {false,false,false,false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
+bool to_test[11] = {false,false,false,false,false,false,false,false,false,false,false}; // for each sensor in the list, false means it will not be tested; during initialization, desired sensors will be set to true
 
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
 bool printedSucc = false;
 
 // Sensor selection
-enum Select {ADS1115,LIS3DH,VL53L1X,BREAKOUT,PEC11,HALL};
+enum Select {ADS1115,LIS3DH,VL53L1X,BREAKOUT,PEC11,HALL,HCSR04,ADXL335,STRAIN,WIND,LOAD};
 Select sensor = ADS1115;
 
 // True if all desired sensors have been tested
@@ -163,7 +165,7 @@ Axis direction = X;
 // VL53L1X object (default I2C address 0x29)
 Adafruit_VL53L1X vlx = Adafruit_VL53L1X(XSHUT_PIN, IRQ_PIN);
 
-// Proximity setting
+// Proximity setting (will also be used by the HC-SR04)
 enum Proximity {NEAR,FAR};
 Proximity proximity = NEAR;
 
@@ -202,6 +204,16 @@ const int hallPin = 2;   // substitute for digital pin connected to SY-M213 outp
 // Sensor reading variables
 int s_curr = 0; // Current sensor reading
 int s_prev = 0; // Previous sensor reading
+
+// --------- HC-SR04 --------- //
+
+// Declare necessary additional pins for sensor function
+const int trig_pin = 48;
+const int echo_pin = 46;
+
+// Distance measurement from 
+float hcTiming = 0.0;
+float hcDist = 0.0;
 
 // =========================== SETUP =========================== //
 void setup() {
@@ -268,6 +280,7 @@ void loop() {
               case VL53L1X: vlxPrompt(); break;
               case PEC11: pecPrompt(); break;
               case HALL: hallPrompt(); break;
+              case HCSR04: hcPrompt(); break;
             }
           }
           break;
@@ -329,6 +342,12 @@ void loop() {
               if (c == ' ') {
                 hallDecide();
               }
+            case HCSR04:
+              hcRead();
+
+              if (c == ' ') {
+                hcDecide();
+              }
           }
           break;
         case VERDICT:
@@ -373,7 +392,7 @@ char charPressed() {
 void nextSensor() {
   all_tested = true;
   // Iterate through the to_test array until we find a sensor that will be tested
-  for (int ii = 0; ii < 7; ii++) {
+  for (int ii = 0; ii < 12; ii++) {
     if (to_test[ii] == true) {
       sensor = static_cast<Select>(ii); // ii should correspond to the index of the sensor enum (ex. 0 corresponds to ADS1115)
       to_test[ii] = false; // eliminates repeated tests of the same sensor
@@ -408,6 +427,7 @@ void reset4next() {
   level = POS;
   direction = X;
   proximity = NEAR;
+  rotDir = CW;
 }
 
 // --------- ADS1115 --------- //
@@ -771,4 +791,66 @@ void hallDecide() {
     is_working = true;
   }
   status = VERDICT;
+}
+
+// --------- HC-SR04 --------- //
+
+// Initialize HC-SR04
+void hcInitialize() {
+  // Initialize pins
+  pinMode(trig_pin, OUTPUT); digitalWrite(trig_pin, LOW);
+  pinMode(echo_pin, INPUT);
+}
+
+// Give instructions to user and prompt them to begin testing
+void hcPrompt() {
+  if (proximity == NEAR) {
+    Serial.println("Beginning test. Place hand 6 inches in front of sensor, then press SPACE + ENTER to conclude test.");
+  } else {
+    Serial.println("Beginning test. Remove hand, then press SPACE + ENTER to conclude test.");
+  }
+}
+
+// Read from the HC-SR04
+void hcRead() {
+  // new measurement for the taking!
+    digitalWrite(trig_pin, LOW);
+    delay(2);
+  
+    digitalWrite(trig_pin, HIGH);
+    delay(10);
+    digitalWrite(trig_pin, LOW);
+  
+    hcTiming = pulseIn(echo_pin, HIGH);
+    hcDist = ((hcTiming * 0.034) / 2)/(2.54);
+  if (hcDist == -1) {
+    // something went wrong!
+    Serial.print(F("Couldn't get distance"));
+    return;
+  }
+  // Serial.print(F("Distance: "));
+  // Serial.print(distance);
+  // Serial.println(" mm");
+
+  // data is read out, time for another reading!
+}
+
+// Decide whether the HC-SR04 is working
+void hcDecide() {
+  if (proximity == NEAR) {
+    proximity = FAR;
+    if (hcDist >= 8 || hcDist <= 4) {
+      is_working = false;
+      status = VERDICT;
+    } else {
+      Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+      status = WAITING;
+    }
+  } else {
+    status = VERDICT;
+    Serial.println("Test complete.");
+    if (hcDist < 12) {
+      is_working = false;
+    }
+  }
 }
