@@ -7,8 +7,8 @@ enum State {WAITING, READING, VERDICT};
 State status = WAITING;
 
 // Direction of rotation
-enum Axis {CW,CCW};
-Axis direction = CW;
+enum Direction {CW,CCW};
+Direction rotDir = CW;
 
 // Variables to indicate if sensor works (default is yes)
 bool is_working = true;
@@ -57,7 +57,7 @@ void loop() {
       case WAITING: // waiting for user input
         if (spacePressed()) {
           status = READING; // will execute code in second case next time loop repeats
-          if (direction == CW) { // prompt the user based on the direction of encoder rotation
+          if (rotDir == CW) { // prompt the user based on the direction of encoder rotation
             Serial.println("Beginning test. Slowly rotate the encoder a few clicks clockwise, then press SPACE + ENTER to conclude test.");
           } else {
             Serial.println("Beginning test. Slowly rotate the encoder a few clicks counterclockwise, then press SPACE + ENTER to conclude test.");
@@ -65,10 +65,10 @@ void loop() {
         }
         break;
       case READING:
-        if (direction == CW) {
+        if (rotDir == CW) {
           if (spacePressed()) {
             status = WAITING;
-            direction = CCW;
+            rotDir = CCW;
             Serial.println("Test complete.");
             if (!Encoded || EncoderValue <= 0) {
               is_working = false;

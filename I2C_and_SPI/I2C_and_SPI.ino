@@ -40,7 +40,7 @@ Sensors:
   b) Related functions:
     - vlxInitialize()
     - vlxRead()
-4. Adafruit SD Card Breakout Board + (SD)
+4. Adafruit SD Card Breakout Board + (BREAKOUT)
   a) Wiring instructions: 
     - See General SPI Wiring Instructions
   b) Related functions:
@@ -85,14 +85,14 @@ bool is_working = true;
 bool all_init = false;
 
 // List of sensors to be tested in current test run
-bool to_test[4] = {false,false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
+bool to_test[5] = {false,false,false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
 
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
 bool printedSucc = false;
 
 // Sensor selection
-enum Select {ADS1115,LIS3DH,VL53L1X,BREAKOUT};
+enum Select {ADS1115,LIS3DH,VL53L1X,BREAKOUT,PEC11};
 Select sensor = ADS1115;
 
 // True if all desired sensors have been tested
@@ -157,6 +157,25 @@ int16_t distance;
 // CS Pin assignment
 const int chipSelect = 10;
 
+// --------- PEC11 --------- //
+
+// Direction of rotation
+enum Direction {CW,CCW};
+Direction rotDir = CW;
+
+// Pin locations
+const int enc_bottom_pin = 2; // Encoder pin that is not the middle
+const int enc_top_pin = 3; // Encoder pin that is not the middle (the other one)
+
+// Variables needed to read rotational encoder values
+int Encoded = 0; // Current value of general rotation
+long LastEncoderValue = 0; // Last value of the encoder
+int bin_sum = 0; // Sum of binary sequence
+volatile int LastEncoded = 0; // Last value of the general rotation
+volatile long EncoderValue = 0; // Current value of the encoder
+int enc_bottom_val; // Reading from enc_bottom_pin
+int enc_top_val; // Reading from enc_top_pin
+
 // =========================== SETUP =========================== //
 void setup() {
   // Begin serial communication
@@ -184,6 +203,9 @@ void setup() {
           break;
         case BREAKOUT:
           sdInitialize();
+          break;
+        case PEC11:
+          pecInitialize();
           break;
       }
       Serial.print(sensor); Serial.println(" initialized.");
@@ -217,6 +239,7 @@ void loop() {
               case ADS1115: adsPrompt(); break;
               case LIS3DH: lisPrompt(); break;
               case VL53L1X: vlxPrompt(); break;
+              case PEC11: pecPrompt(); break;
             }
           }
           break;
@@ -266,6 +289,9 @@ void loop() {
               sdTest(); // Test the sensor
               sdDecide(); // Determine whether the sensor is working
               break;
+            case PEC11:
+              pecDecide(); // Do not need to expressly read the sensor (done through interrupts), just decide here if it works
+              break;
           }
           break;
         case VERDICT:
@@ -310,7 +336,7 @@ char charPressed() {
 void nextSensor() {
   all_tested = true;
   // Iterate through the to_test array until we find a sensor that will be tested
-  for (int ii = 0; ii < 4; ii++) {
+  for (int ii = 0; ii < 5; ii++) {
     if (to_test[ii] == true) {
       sensor = static_cast<Select>(ii); // ii should correspond to the index of the sensor enum (ex. 0 corresponds to ADS1115)
       to_test[ii] = false; // eliminates repeated tests of the same sensor
@@ -604,4 +630,78 @@ void sdDecide() {
     is_working = false;
   }
   status = VERDICT;
+}
+
+// --------- PEC11 --------- //
+
+// Initialize encoder
+void pecInitialize() {
+  Serial.println("Do not touch encoder. Initializing...");
+
+  // Setting up input types for pins on encoder
+  pinMode(enc_bottom_pin,INPUT);        //One of the encoder pins and set to HIGH
+    digitalWrite(enc_bottom_pin,HIGH);
+  pinMode(enc_top_pin,INPUT);           //The other encoder pin and set to HIGH
+    digitalWrite(enc_top_pin,HIGH);
+
+  // Set interrupt routine, so the UpdateEncoder() function is activated when any high/low
+  // change is seen on interrupt 0 (bottom pin), or interrupt 1 (top pin).
+  attachInterrupt(0,UpdateEncoder,CHANGE);
+  attachInterrupt(1,UpdateEncoder,CHANGE);
+}
+
+// Provide instructions to user for testing
+void pecPrompt() {
+  if (rotDir == CW) { // prompt the user based on the direction of encoder rotation
+    Serial.println("Beginning test. Slowly rotate the encoder a few clicks clockwise, then press SPACE + ENTER to conclude test.");
+  } else {
+    Serial.println("Beginning test. Slowly rotate the encoder a few clicks counterclockwise, then press SPACE + ENTER to conclude test.");
+  }
+}
+
+// Function to read the encoder
+void UpdateEncoder() {
+
+  // Reading digital pins (left side of rotary encoder)
+  enc_bottom_val = digitalRead(enc_bottom_pin);
+  enc_top_val = digitalRead(enc_top_pin);
+
+  // Converting reading and sum to binary sequences
+  Encoded = (enc_top_val << 1) | enc_bottom_val;
+  bin_sum = (LastEncoded << 2) | Encoded;
+
+  // Deciding if increasing or decreasing in rotations
+  if(bin_sum == 0b0001 || bin_sum == 0b0111 || bin_sum == 0b1110 || bin_sum == 0b1000)
+  {
+    EncoderValue ++;
+  }
+  if(bin_sum == 0b0010 || bin_sum == 0b1011 || bin_sum == 0b1101 || bin_sum == 0b0100)
+  {
+    EncoderValue --;
+  }
+  // Updating variables
+  LastEncoded = Encoded;
+}
+
+// Decide if the encoder is working
+void pecDecide() {
+  if (rotDir == CW) {
+    if (c == ' ') {
+      status = WAITING;
+      rotDir = CCW;
+      Serial.println("Test complete.");
+      if (!Encoded || EncoderValue <= 0) {
+        is_working = false;
+        status = VERDICT;
+      }
+    }
+  } else {
+    if (c == ' ') {
+      status = VERDICT;
+      Serial.println("Test complete.");
+      if (!Encoded || EncoderValue >= 0) {
+        is_working = false;
+      }
+    }
+  }
 }
