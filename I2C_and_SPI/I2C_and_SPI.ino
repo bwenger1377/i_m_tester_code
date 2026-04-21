@@ -260,38 +260,40 @@ void setup() {
 
   while (!all_init) {
     Serial.print("Would you like to test the "); Serial.print(sensor); Serial.println(" in this test run? (y/n): ");
-    c = charPressed();
-    if (c == 'y') { 
-      to_test[sensor] = 1;
-      switch (sensor) {
-        case ADS1115: 
-          if (!adsInitialize()) {
-            Serial.print(sensor); Serial.println(" failed to initialize. Check connections, then try again.");
-            while(1); 
-          }
-          break;
-        case LIS3DH: 
-          lisInitialize();
-          break;
-        case VL53L1X: 
-          vlxInitialize();
-          break;
-        case BREAKOUT:
-          sdInitialize();
-          break;
-        case PEC11:
-          pecInitialize();
-          break;
-        case ADXL335:
-          adxlInitialize();
-          break;
+    while ((c != 'y') && (c != 'n')) {
+      c = charPressed();
+      if (c == 'y') { 
+        to_test[sensor] = 1;
+        switch (sensor) {
+          case ADS1115: 
+            if (!adsInitialize()) {
+              Serial.print(sensor); Serial.println(" failed to initialize. Check connections, then try again.");
+              while(1); 
+            }
+            break;
+          case LIS3DH: 
+            lisInitialize();
+            break;
+          case VL53L1X: 
+            vlxInitialize();
+            break;
+          case BREAKOUT:
+            sdInitialize();
+            break;
+          case PEC11:
+            pecInitialize();
+            break;
+          case ADXL335:
+            adxlInitialize();
+            break;
+        }
+        Serial.print(sensor); Serial.println(" initialized.");
+        sensor = static_cast<Select>(sensor + 1);
+      } else if (c == 'n') {
+        sensor = static_cast<Select>(sensor + 1);
       }
-      Serial.print(sensor); Serial.println(" initialized.");
-      sensor = static_cast<Select>(sensor + 1);
-    } else if (c == 'n') {
-      sensor = static_cast<Select>(sensor + 1);
     }
-    if (sensor > BREAKOUT) {
+    if (sensor > ADXL335) {
       all_init = true; // This will end the while loop
     }
   }
@@ -430,6 +432,7 @@ char charPressed() {
     }
     return c;
   }
+  return '\0';
 }
 
 // Determine which sensor is next from the list of sensors to test
