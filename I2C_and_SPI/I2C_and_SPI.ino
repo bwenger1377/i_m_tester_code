@@ -1,5 +1,5 @@
 // Written by Benjamin Wenger on 4-20-26
-// Last revision 4-20-26
+// Last revision 4-21-26
 // Functionality test code for I2C and SPI sensors
 
 /*
@@ -26,6 +26,7 @@ Sensors:
     - None for this sensor
   b) Related functions:
     - lisInitialize()
+    - accelPrompt
     - lisRead()
     - updateMax()
     - lisVerdict()
@@ -66,31 +67,44 @@ Sensors:
     - Trig --> Arduino digital pin
     - Echo --> Arduino digital pin
   b) Related functions:
-    - 
+    - hcInitialize()
+    - hcPrompt()
+    - hcRead()
+    - hcDecide()
+8. ADXL335 3-Axis Accelerometer
+  a) Wiring instructions:
+    - Xout, Yout, Zout --> Arduino analog pins
+  b) Related functions:
+    - adxlInitialize()
+    - accelPrompt()
+    - updateMax()
+    - adxlRead()
+    - adxlDecide()
+    - adxlVerdict()
 */
 
-// =========================== LIBRARIES =========================== //
+// ============================================================================================================ LIBRARIES ============================================================================================================ //
 
-// --------- GENERAL --------- //
+// ------------------------------ GENERAL ------------------------------ //
 #include <Wire.h>
 
-// --------- ADS1115 --------- //
+// ------------------------------ ADS1115 ------------------------------ //
 #include <Adafruit_ADS1X15.h>
 
-// --------- LIS3DH --------- //
+// ------------------------------ LIS3DH ------------------------------ //
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_Sensor.h>
 
-// --------- VL53L1X --------- //
+// ------------------------------ VL53L1X ------------------------------ //
 #include <Adafruit_VL53L1X.h>
 
-// --------- SD Card Breakout Board + --------- //
+// ------------------------------ SD Card Breakout Board + ------------------------------ //
 #include <SPI.h>
 #include <SD.h>
 
-// =========================== VARIABLES =========================== //
+// ============================================================================================================ VARIABLES ============================================================================================================ //
 
-// --------- GENERAL --------- //
+// ------------------------------ GENERAL ------------------------------ //
 
 // State of loop operations
 enum State {WAITING,READING,VERDICT};
@@ -118,7 +132,7 @@ Select sensor = ADS1115;
 // True if all desired sensors have been tested
 bool all_tested = false;
 
-// --------- ADS1115 --------- //
+// ------------------------------ ADS1115 ------------------------------ //
 
 // ADS1115 object (default I2C address 0x48)
 Adafruit_ADS1115 ads;
@@ -143,7 +157,7 @@ float ardVoltage = 0;
 const float posMin = 5.05; // V
 const float negMax = -0.1; // V
 
-// --------- LIS3DH --------- //
+// ------------------------------ LIS3DH ------------------------------ //
 
 // LIS3DH object (default I2C address 0x18)
 Adafruit_LIS3DH lis = Adafruit_LIS3DH();
@@ -156,7 +170,7 @@ float maxVals[3] = {0,0,0}; // x_max,y_max,z_max
 enum Axis {X, Y, Z};
 Axis direction = X;
 
-// --------- VL53L1X --------- //
+// ------------------------------ VL53L1X ------------------------------ //
 
 // Additional pin assignments
 #define IRQ_PIN 4
@@ -172,12 +186,12 @@ Proximity proximity = NEAR;
 // Distance measurement from VL53L1X (in mm)
 int16_t distance;
 
-// --------- SD Card Breakout Board + --------- //
+// ------------------------------ SD Card Breakout Board + ------------------------------ //
 
 // CS Pin assignment
 const int chipSelect = 10;
 
-// --------- PEC11 --------- //
+// ------------------------------ PEC11 ------------------------------ //
 
 // Direction of rotation
 enum Direction {CW,CCW};
@@ -196,7 +210,7 @@ volatile long EncoderValue = 0; // Current value of the encoder
 int enc_bottom_val; // Reading from enc_bottom_pin
 int enc_top_val; // Reading from enc_top_pin
 
-// --------- HALL --------- //
+// ------------------------------ HALL ------------------------------ //
 
 // Declare pin number
 const int hallPin = 2;   // substitute for digital pin connected to SY-M213 output
@@ -205,7 +219,7 @@ const int hallPin = 2;   // substitute for digital pin connected to SY-M213 outp
 int s_curr = 0; // Current sensor reading
 int s_prev = 0; // Previous sensor reading
 
-// --------- HC-SR04 --------- //
+// ------------------------------ HC-SR04 ------------------------------ //
 
 // Declare necessary additional pins for sensor function
 const int trig_pin = 48;
@@ -215,7 +229,12 @@ const int echo_pin = 46;
 float hcTiming = 0.0;
 float hcDist = 0.0;
 
-// =========================== SETUP =========================== //
+// ------------------------------ ADXL335 ------------------------------ //
+const int xPin = A5;
+const int yPin = A4;
+const int zPin = A3;
+
+// ============================================================================================================ SETUP ============================================================================================================ //
 void setup() {
   // Begin serial communication
   Serial.begin(115200);
@@ -246,6 +265,9 @@ void setup() {
         case PEC11:
           pecInitialize();
           break;
+        case ADXL335:
+          adxlInitialize();
+          break;
       }
       Serial.print(sensor); Serial.println(" initialized.");
       sensor = static_cast<Select>(sensor + 1);
@@ -263,7 +285,7 @@ void setup() {
   Serial.println("Press SPACE + ENTER to begin testing.");
 }
 
-// =========================== FINITE STATE MACHINE =========================== //
+// ============================================================================================================ FSM ============================================================================================================ //
 void loop() {
   c = charPressed();
   if (!all_tested) { // If there are still sensors left to test
@@ -276,11 +298,12 @@ void loop() {
             switch (sensor) {
               // Provide instructions for sensor testing and prompt the user to begin the test
               case ADS1115: adsPrompt(); break;
-              case LIS3DH: lisPrompt(); break;
+              case LIS3DH: accelPrompt(); break;
               case VL53L1X: vlxPrompt(); break;
               case PEC11: pecPrompt(); break;
               case HALL: hallPrompt(); break;
               case HCSR04: hcPrompt(); break;
+              case ADXL335: accelPrompt(); break;
             }
           }
           break;
@@ -303,7 +326,7 @@ void loop() {
               lisRead();
 
               // Update max values for x, y, and z measurements
-              lisUpdateMax();
+              updateMax();
 
               if (c == ' ') {
                 if (direction == Z) {
@@ -348,6 +371,10 @@ void loop() {
               if (c == ' ') {
                 hcDecide();
               }
+            case ADXL335:
+              adxlRead(); // Read from the ADXL335
+              updateMax(); // Update max values for x, y, and z measurements
+              adxlDecide(); // Only runs if spacebar is pressed
           }
           break;
         case VERDICT:
@@ -373,9 +400,9 @@ void loop() {
   }
 }
 
-// =========================== RELATED FUNCTIONS =========================== //
+// ============================================================================================================ FUNCTIONS ============================================================================================================ //
 
-// --------- GENERAL --------- //
+// ------------------------------ GENERAL ------------------------------ //
 
 // Determine what key a user pressed
 char charPressed() {
@@ -428,9 +455,13 @@ void reset4next() {
   direction = X;
   proximity = NEAR;
   rotDir = CW;
+  for (int ii = 0; ii < 3; ii++) {
+    vals[ii] = 0;
+    maxVals[ii] = 0;
+  }
 }
 
-// --------- ADS1115 --------- //
+// ------------------------------ ADS1115 ------------------------------ //
 
 // Initialize ADS1115
 bool adsInitialize() {
@@ -489,7 +520,7 @@ void adsDecide() {
   }
 }
 
-// --------- LIS3DH --------- //
+// ------------------------------ LIS3DH ------------------------------ //
 
 // Initialize LIS3DH
 void lisInitialize() {
@@ -505,7 +536,8 @@ void lisInitialize() {
   Serial.println("G");
 }
 
-void lisPrompt() {
+// Give user instructions for testing LIS3DH and ADXL335
+void accelPrompt() {
   switch (direction) {
   // Test x,y,z directions in that order to ensure all are working.
   case X: // x-direction
@@ -531,7 +563,7 @@ void lisRead() {
 }
 
 // Update max values in the current direction
-void lisUpdateMax() {
+void updateMax() {
   if (vals[direction] > maxVals[direction]) {
     maxVals[direction] = vals[direction];
   }
@@ -552,7 +584,7 @@ void lisVerdict() {
   }
 }
 
-// --------- VL53L1X --------- //
+// ------------------------------ VL53L1X ------------------------------ //
 
 // Initialize VL53L1X
 void vlxInitialize() {
@@ -628,7 +660,7 @@ void vlxDecide() {
   }
 }
 
-// --------- SD Card Breakout Board + --------- //
+// ------------------------------ SD Card Breakout Board + ------------------------------ //
 
 // Initialize SD Card Breakout Board
 void sdInitialize() {
@@ -689,7 +721,7 @@ void sdDecide() {
   status = VERDICT;
 }
 
-// --------- PEC11 --------- //
+// ------------------------------ PEC11 ------------------------------ //
 
 // Initialize encoder
 void pecInitialize() {
@@ -763,7 +795,7 @@ void pecDecide() {
   }
 }
 
-// --------- HALL --------- //
+// ------------------------------ HALL ------------------------------ //
 
 void hallInitialize() {
   // Set pin modes
@@ -793,7 +825,7 @@ void hallDecide() {
   status = VERDICT;
 }
 
-// --------- HC-SR04 --------- //
+// ------------------------------ HC-SR04 ------------------------------ //
 
 // Initialize HC-SR04
 void hcInitialize() {
@@ -851,6 +883,84 @@ void hcDecide() {
     Serial.println("Test complete.");
     if (hcDist < 12) {
       is_working = false;
+    }
+  }
+}
+
+// ------------------------------ ADXL335 ------------------------------ //
+
+// Initialize accelerometer
+void adxlInitialize() {
+  Serial.println("Measuring initial accelerations. Keep board on a flat surface...");
+  delay(3000); // Give the user a chance to set the board down
+  for (int ii = 0; ii < 400; ii++) {
+    // Get a new sensor reading with normalized accelerations
+    adxlRead();
+
+    Serial.println(vals[0]); // for debugging
+    
+    // Decide whether sensor is working based on offsets. x and y should be close to 0; z should be close to 9.81.
+    if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || vals[2] > 11.0 || vals[2] < 7.0) {
+      Serial.println("Sensor measurements do not match expected values.");
+      is_working = false;
+      status = VERDICT;
+      break;
+    }
+    // Short delay
+    delay(1);
+  }
+}
+
+// Read from accelerometer
+void adxlRead() {
+  // Read raw analog values
+  int rawX = analogRead(xPin);
+  int rawY = analogRead(yPin);
+  int rawZ = analogRead(zPin);
+
+  // Convert to voltage
+  float xVolt = map(rawX, 0,1023,0,5000);
+  float yVolt = map(rawY, 0,1023,0,5000);
+  float zVolt = map(rawZ, 0,1023,0,5000);
+
+  // Convert voltage to acceleration in g
+  vals[0] = 9.81*(map(xVolt, 0, 3300, -5000, 5000)/1000.0);
+  vals[1] = 9.81*(map(yVolt, 0, 3300, -5000, 5000)/1000.0);
+  vals[2] = 9.81*(map(zVolt, 0, 3300, -5000, 5000)/1000.0);
+}
+
+// Decide whether the accelerometer is working
+void adxlDecide() {
+  if (direction == Z) {
+    if (c == ' ') {
+      //Serial.println(fabs(maxVals[direction]));
+      status = VERDICT;
+      Serial.println("Testing complete.");
+      adxlVerdict();
+    }
+  } else {
+    if (c == ' ') {
+      //Serial.println(fabs(maxVals[direction]));
+      status = WAITING;
+      adxlVerdict();
+      direction = (Axis)(direction + 1);
+      if (is_working == true) {
+        Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+      }
+    }
+  }
+}
+
+// Decide whether the accelerometer is working
+void adxlVerdict() {
+  if (direction == Z) {
+    if (fabs(maxVals[Z]) < 2.0) {
+      is_working = false;
+    }
+  } else {
+      if (fabs(maxVals[direction]) < 2.0) {
+      is_working = false;
+      status = VERDICT;
     }
   }
 }
