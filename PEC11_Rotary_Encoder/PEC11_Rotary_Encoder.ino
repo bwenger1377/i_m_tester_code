@@ -1,5 +1,5 @@
 // Written by Benjamin Wenger on 3-31-26
-// Last updated 4-2-26
+// Last updated 4-20-26
 // Functionality Test Code for PEC11 Rotary Encoder
 
 // State of loop operations

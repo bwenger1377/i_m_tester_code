@@ -47,6 +47,24 @@ Sensors:
     - sdInitialize()
   c) Additional notes:
     - Assume FAT32 format (anything else is outside the scope of this test)
+5. PEC11 Rotary Encoder (PEC)
+  a) Wiring instructions:
+    - There is a group of 3 pins and a group of 2 pins.
+    - The middle pin in the group of 3 should be --> GND
+    - Other two pins will go to pins 2 and 3 on the Mega (any interrupt-capable pins)
+    - Solder board will make this easier to determine
+  b) Related functions:
+    - pecInitialize()
+    - pecPrompt()
+    - UpdateEncoder()
+    - pecDecide()
+6. SY-M213 Hall Effect Module (HALL)
+  a) Wiring instructions:
+    - Vin --> Arduino 5V
+    - GND --> Arduino GND
+    - D0 --> Arduino digital pin
+  b) Related functions:
+    - 
 */
 
 // =========================== LIBRARIES =========================== //
@@ -85,14 +103,14 @@ bool is_working = true;
 bool all_init = false;
 
 // List of sensors to be tested in current test run
-bool to_test[5] = {false,false,false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
+bool to_test[6] = {false,false,false,false,false,false}; // for each sensor in the list, 0 means it will not be tested; during initialization, desired sensors will be set to 1
 
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
 bool printedSucc = false;
 
 // Sensor selection
-enum Select {ADS1115,LIS3DH,VL53L1X,BREAKOUT,PEC11};
+enum Select {ADS1115,LIS3DH,VL53L1X,BREAKOUT,PEC11,HALL};
 Select sensor = ADS1115;
 
 // True if all desired sensors have been tested
@@ -176,6 +194,15 @@ volatile long EncoderValue = 0; // Current value of the encoder
 int enc_bottom_val; // Reading from enc_bottom_pin
 int enc_top_val; // Reading from enc_top_pin
 
+// --------- HALL --------- //
+
+// Declare pin number
+const int hallPin = 2;   // substitute for digital pin connected to SY-M213 output
+
+// Sensor reading variables
+int s_curr = 0; // Current sensor reading
+int s_prev = 0; // Previous sensor reading
+
 // =========================== SETUP =========================== //
 void setup() {
   // Begin serial communication
@@ -240,6 +267,7 @@ void loop() {
               case LIS3DH: lisPrompt(); break;
               case VL53L1X: vlxPrompt(); break;
               case PEC11: pecPrompt(); break;
+              case HALL: hallPrompt(); break;
             }
           }
           break;
@@ -290,8 +318,17 @@ void loop() {
               sdDecide(); // Determine whether the sensor is working
               break;
             case PEC11:
-              pecDecide(); // Do not need to expressly read the sensor (done through interrupts), just decide here if it works
+              if (c == ' ') {
+                pecDecide(); // Do not need to expressly read the sensor (done through interrupts), just decide here if it works
+              }
               break;
+            case HALL:
+              s_curr = digitalRead(hallPin); // read sensor state
+              //Serial.println(s_curr); //for troubleshooting only
+
+              if (c == ' ') {
+                hallDecide();
+              }
           }
           break;
         case VERDICT:
@@ -336,7 +373,7 @@ char charPressed() {
 void nextSensor() {
   all_tested = true;
   // Iterate through the to_test array until we find a sensor that will be tested
-  for (int ii = 0; ii < 5; ii++) {
+  for (int ii = 0; ii < 7; ii++) {
     if (to_test[ii] == true) {
       sensor = static_cast<Select>(ii); // ii should correspond to the index of the sensor enum (ex. 0 corresponds to ADS1115)
       to_test[ii] = false; // eliminates repeated tests of the same sensor
@@ -704,4 +741,34 @@ void pecDecide() {
       }
     }
   }
+}
+
+// --------- HALL --------- //
+
+void hallInitialize() {
+  // Set pin modes
+  pinMode(hallPin,INPUT);
+
+  // Read initial sensor value to screen for false positives
+  Serial.println("Hold magnet away from sensor.");
+  delay(2000);
+  s_curr = digitalRead(hallPin);
+  if (s_curr == 1) {
+    is_working = 0;
+    Serial.println("Hall sensor gave false positive and is not working.");
+    to_test[5] = false; // Indicate that this sensor has already been tested and is not working
+  }
+}
+
+void hallPrompt() {
+  Serial.println("Place and hold a magnet next to the BJT, then press SPACE + ENTER to conclude test.");
+}
+
+void hallDecide() {
+  if (s_curr != 1 & s_prev != 1) {
+    is_working = false;
+  } else {
+    is_working = true;
+  }
+  status = VERDICT;
 }
