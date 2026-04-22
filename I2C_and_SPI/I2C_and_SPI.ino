@@ -293,11 +293,13 @@ void setup() {
         sensor = static_cast<Select>(sensor + 1);
       }
     }
+    c = '\0';
     if (sensor > ADXL335) {
       all_init = true; // This will end the while loop
     }
   }
 
+  Serial.println(all_tested);
   nextSensor(); // Set the sensor to be tested
 
   // Prompt user input to begin testing
@@ -384,30 +386,39 @@ void loop() {
               if (c == ' ') {
                 hallDecide();
               }
+              break;
             case HCSR04:
               hcRead();
 
               if (c == ' ') {
                 hcDecide();
               }
+              break;
             case ADXL335:
               adxlRead(); // Read from the ADXL335
               updateMax(); // Update max values for x, y, and z measurements
               adxlDecide(); // Only runs if spacebar is pressed
+              break;
           }
           break;
         case VERDICT:
           // Print whether or not the sensor is working
-          giveVerdict();
-          nextSensor();
-          if (!all_tested) {
-            Serial.println("Would you like to test the next sensor? (y/n): ");
+          if (!printedSucc) {
+            giveVerdict(); // Let the user know whether or not the sensor is working
+
+            nextSensor(); // Move onto the next sensor (and/or figure out if all have been tested)
+
+            // If not all of the sensors have been tested, ask the user if they would like to continue on to the next sensor
+            if (!all_tested) {
+              Serial.println("Would you like to test the next sensor? (y/n): ");
+              printedFail = true; // set to true so that we execute properly through the FSM
+              printedSucc = true; // see above
+            }
           }
           break;
       }
     } else if (c == 'y') {
-      // Reset important loop logic for next sensor test
-      reset4next();
+      reset4next(); // Reset important loop logic for next sensor test
       
       Serial.println("Press SPACE + ENTER to begin testing.");
     } else if (c == 'n') {
@@ -427,6 +438,7 @@ void loop() {
 char charPressed() {
   if(Serial.available()) {
     char c = Serial.read();
+    delay(1); // wait a millisecond to ensure that the buffer is read before being emptied
     while (Serial.available()) {
       Serial.read(); // clear buffer
     }
@@ -439,7 +451,7 @@ char charPressed() {
 void nextSensor() {
   all_tested = true;
   // Iterate through the to_test array until we find a sensor that will be tested
-  for (int ii = 0; ii < 12; ii++) {
+  for (int ii = 0; ii < 11; ii++) {
     if (to_test[ii] == true) {
       sensor = static_cast<Select>(ii); // ii should correspond to the index of the sensor enum (ex. 0 corresponds to ADS1115)
       to_test[ii] = false; // eliminates repeated tests of the same sensor
@@ -447,7 +459,6 @@ void nextSensor() {
       break;
     }
   }
-  all_tested = true; // will only execute if no more entries in to_test are true
 }
 
 // Give a verdict on sensor functionality
@@ -522,11 +533,8 @@ void adsDecide() {
   if (level == POS) {
     level = NEG;
     if (voltage < posMin) {
-      if (ardVoltage <= 5.0) {
         is_working = false;
         status = VERDICT;
-      }
-      Serial.println(ardVoltage);
     } else {
       Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
       status = WAITING;
@@ -534,7 +542,7 @@ void adsDecide() {
   } else {
     status = VERDICT;
     Serial.println("Test complete.");
-    if ((voltage > negMax) && (ardVoltage <= 0.1)) {
+    if (voltage > negMax) {
       is_working = false;
     }
   }
@@ -561,13 +569,13 @@ void accelPrompt() {
   switch (direction) {
   // Test x,y,z directions in that order to ensure all are working.
   case X: // x-direction
-    Serial.println("Move shield rapidly forward and backward.");
+    Serial.println("Move shield rapidly forward and backward. Press SPACE + ENTER to conclude test.");
     break;
   case Y: // y-direction
-    Serial.println("Move shield rapidly from left to right.");
+    Serial.println("Move shield rapidly from left to right. Press SPACE + ENTER to conclude test.");
     break;
   case Z: // z-direction
-    Serial.println("Move board rapidly upward and downward.");
+    Serial.println("Move board rapidly upward and downward. Press SPACE + ENTER to conclude test.");
     break;
   }
 }
@@ -635,9 +643,9 @@ void vlxInitialize() {
 
 void vlxPrompt() {
   if (proximity == NEAR) {
-    Serial.println("Beginning test. Place hand 6 inches above sensor, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning test. Place hand 6 inches above VL53L1X, then press SPACE + ENTER to conclude test.");
   } else {
-    Serial.println("Beginning test. Remove hand from above sensor, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning test. Remove hand from above VL53L1X, then press SPACE + ENTER to conclude test.");
   }
 }
 
