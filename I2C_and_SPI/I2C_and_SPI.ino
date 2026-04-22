@@ -218,7 +218,7 @@ int enc_top_val; // Reading from enc_top_pin
 // ------------------------------ HALL ------------------------------ //
 
 // Declare pin number
-const int hallPin = 2;   // substitute for digital pin connected to SY-M213 output
+const int hallPin = 49;   // substitute for digital pin connected to SY-M213 output
 
 // Sensor reading variables
 int s_curr = 0; // Current sensor reading
@@ -238,18 +238,16 @@ float hcDist = 0.0;
 
 // Pin assignments
 const int xPin = A5;
-const int yPin = A4;
-const int zPin = A3;
+const int yPin = A6;
+const int zPin = A7;
 
 // ------------------------------ STRAIN ------------------------------ //
 
-// Pin assignments
-const int strainPin = A0;    // Analog pin for module output
-int rawValue = 0;      // Variable to store raw reading
+// Pin assignment
+const int strainPin = A0; // Analog pin for module output
 
-// State of loading (2 tests--one loaded, one unloaded)
-enum Loading {NO,YES};
-Loading loading = NO;
+// Reading variable
+int rawValue = 0; // Variable to store raw reading
 
 // ============================================================================================================ SETUP ============================================================================================================ //
 void setup() {
@@ -259,7 +257,9 @@ void setup() {
   delay(3000); // 3-second delay to give the user some time to prepare
 
   while (!all_init) {
-    Serial.print("Would you like to test the "); Serial.print(sensor); Serial.println(" in this test run? (y/n): ");
+    Serial.print("Would you like to test the "); 
+    printSensor();
+    Serial.println(" in this test run? (y/n): ");
     while ((c != 'y') && (c != 'n')) {
       c = charPressed();
       if (c == 'y') { 
@@ -283,18 +283,27 @@ void setup() {
           case PEC11:
             pecInitialize();
             break;
+          case HALL:
+            hallInitialize();
+            break;
+          case HCSR04:
+            hcInitialize();
+            break;
           case ADXL335:
             adxlInitialize();
             break;
         }
-        Serial.print(sensor); Serial.println(" initialized.");
+        if (is_working) {
+          printSensor(); 
+          Serial.println(" initialized.");
+        }
         sensor = static_cast<Select>(sensor + 1);
       } else if (c == 'n') {
         sensor = static_cast<Select>(sensor + 1);
       }
     }
     c = '\0';
-    if (sensor > ADXL335) {
+    if (sensor > LOAD) {
       all_init = true; // This will end the while loop
     }
   }
@@ -325,6 +334,7 @@ void loop() {
               case HALL: hallPrompt(); break;
               case HCSR04: hcPrompt(); break;
               case ADXL335: accelPrompt(); break;
+              case STRAIN: strainPrompt(); break;
             }
           }
           break;
@@ -399,6 +409,13 @@ void loop() {
               updateMax(); // Update max values for x, y, and z measurements
               adxlDecide(); // Only runs if spacebar is pressed
               break;
+            case STRAIN:
+              rawValue = analogRead(strainPin);
+              Serial.print("Raw value: "); Serial.println(rawValue);
+
+              if (c == ' ') {
+                strainDecide();
+              }
           }
           break;
         case VERDICT:
@@ -410,7 +427,7 @@ void loop() {
 
             // If not all of the sensors have been tested, ask the user if they would like to continue on to the next sensor
             if (!all_tested) {
-              Serial.println("Would you like to test the next sensor? (y/n): ");
+              Serial.println("Would you like to test another sensor? (y/n): ");
               printedFail = true; // set to true so that we execute properly through the FSM
               printedSucc = true; // see above
             }
@@ -447,6 +464,22 @@ char charPressed() {
   return '\0';
 }
 
+void printSensor() {
+  switch (sensor) {
+    case ADS1115: Serial.print("ADS1115"); break;
+    case LIS3DH: Serial.print("LIS3DH"); break;
+    case VL53L1X: Serial.print("VL53L1X"); break;
+    case BREAKOUT: Serial.print("SD Card Breakout Board +"); break;
+    case PEC11: Serial.print("PEC11"); break;
+    case HALL: Serial.print("Hall Effect Module"); break;
+    case HCSR04: Serial.print("HC-SR04"); break;
+    case ADXL335: Serial.print("ADXL335"); break;
+    case STRAIN: Serial.print("Runeskee Strain Gauge"); break;
+    case WIND: Serial.print("Modern Device Wind Sensor Rev C"); break;
+    case LOAD: Serial.print("HX711 Load Cell Amplifier"); break;
+  }
+}
+
 // Determine which sensor is next from the list of sensors to test
 void nextSensor() {
   all_tested = true;
@@ -464,12 +497,11 @@ void nextSensor() {
 // Give a verdict on sensor functionality
 void giveVerdict() {
   if (!printedSucc) {
+    printSensor();
     if (is_working) {
-      Serial.print(sensor);
       Serial.println(" is working.");
       printedSucc = true;
     } else {
-      Serial.print(sensor);
       Serial.println(" is not working.");
       printedFail = true;
     }
@@ -875,25 +907,21 @@ void hcPrompt() {
 // Read from the HC-SR04
 void hcRead() {
   // new measurement for the taking!
-    digitalWrite(trig_pin, LOW);
-    delay(2);
-  
-    digitalWrite(trig_pin, HIGH);
-    delay(10);
-    digitalWrite(trig_pin, LOW);
-  
-    hcTiming = pulseIn(echo_pin, HIGH);
-    hcDist = ((hcTiming * 0.034) / 2)/(2.54);
-  if (hcDist == -1) {
+  digitalWrite(trig_pin, LOW);
+  delay(2);
+
+  digitalWrite(trig_pin, HIGH);
+  delay(10);
+  digitalWrite(trig_pin, LOW);
+
+  hcTiming = pulseIn(echo_pin, HIGH);
+
+  hcDist = ((hcTiming * 0.034) / 2)/(2.54);
+  if (hcDist == 0) {
     // something went wrong!
     Serial.print(F("Couldn't get distance"));
     return;
   }
-  // Serial.print(F("Distance: "));
-  // Serial.print(distance);
-  // Serial.println(" mm");
-
-  // data is read out, time for another reading!
 }
 
 // Decide whether the HC-SR04 is working
@@ -987,9 +1015,24 @@ void adxlVerdict() {
       is_working = false;
     }
   } else {
-      if (fabs(maxVals[direction]) < 2.0) {
+    if (fabs(maxVals[direction]) < 2.0) {
       is_working = false;
       status = VERDICT;
     }
+  }
+}
+
+// ------------------------------ STRAIN ------------------------------ //
+
+// Provide user instruction for strain gauge test
+void strainPrompt() {
+  Serial.println("Beginning test. Lightly bend the strain gauge toward the side with the solder beads, then press SPACE + ENTER to conclude test.");
+}
+
+// Decide whether the strain gauge is working
+void strainDecide() {
+  status = VERDICT;
+  if (rawValue < 1023) {
+    is_working = false;
   }
 }
