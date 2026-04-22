@@ -194,7 +194,7 @@ int16_t distance;
 // ------------------------------ SD Card Breakout Board + ------------------------------ //
 
 // CS Pin assignment
-const int chipSelect = 10;
+const int chipSelect = 53;
 
 // ------------------------------ PEC11 ------------------------------ //
 
@@ -739,7 +739,7 @@ void sdDecide() {
   Serial.println("Is the sensor working? (y/n): ");
 
   // Wait to move on until the user has confirmed whether or not the sensor is working
-  while (c != 'y' || c != 'n') {
+  while (c != 'y' && c != 'n') {
     c = charPressed();
   }
 
@@ -806,10 +806,11 @@ void pecDecide() {
     if (c == ' ') {
       status = WAITING;
       rotDir = CCW;
-      Serial.println("Test complete.");
       if (!Encoded || EncoderValue <= 0) {
         is_working = false;
         status = VERDICT;
+      } else {
+        Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
       }
     }
   } else {
