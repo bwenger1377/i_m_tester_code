@@ -146,13 +146,14 @@ State status = WAITING;
 char c; // Character inputted to the serial monitor by the user
 
 // True if sensor is working
-bool is_working = true;
+bool is_working[11] = {true,true,true,true,true,true,true,true,true,true,true};
 
 // True if all desired sensors for the current test run have been initialized
 bool all_init = false;
 
 // List of sensors to be tested in current test run
 bool to_test[11] = {false,false,false,false,false,false,false,false,false,false,false}; // for each sensor in the list, false means it will not be tested; during initialization, desired sensors will be set to true
+bool tested[11] = {false,false,false,false,false,false,false,false,false,false,false}; // used to print a summary of the sensors tested at the end of each run
 
 // One is true if a verdict has been passed on a sensor
 bool printedFail = false;
@@ -359,7 +360,7 @@ void setup() {
             loadInitialize();
             break;
         }
-        if (is_working) {
+        if (is_working[sensor]) {
           printSensor(); 
           Serial.println(" initialized.");
         }
@@ -515,6 +516,7 @@ void loop() {
     }
   } else { // If all of the sensors have been tested
     Serial.println("All tests completed. Push reset button to run another round of tests.");
+    printSummary();
     while(1); // Hold indefinitely while the Mega is powered
   }
 }
@@ -570,7 +572,7 @@ void nextSensor() {
 void giveVerdict() {
   if (!printedSucc) {
     printSensor();
-    if (is_working) {
+    if (is_working[sensor]) {
       Serial.println(" is working.");
       printedSucc = true;
     } else {
@@ -578,11 +580,12 @@ void giveVerdict() {
       printedFail = true;
     }
   }
+  tested[sensor] = true;
 }
 
 // Function that resets important loop logic for next sensor
 void reset4next() {
-  is_working = true;
+  //is_working = true;
   printedFail = false;
   printedSucc = false;
   status = WAITING;
@@ -593,6 +596,24 @@ void reset4next() {
   for (int ii = 0; ii < 3; ii++) {
     vals[ii] = 0;
     maxVals[ii] = 0;
+  }
+}
+
+void printSummary() {
+  Serial.println("Summary of test run: ");
+  for (int ii = 0; ii < 11; ii++) {
+    sensor = static_cast<Select>(ii);
+    Serial.print("\t"); Serial.print(sensor + 1); Serial.print(". ");
+    printSensor();
+    if (tested[sensor] == true) {
+      if (is_working[sensor] == true) {
+        Serial.println(" is working.");
+      } else {
+        Serial.println(" is not working.");
+      }
+    } else {
+      Serial.println(" was not tested in this run.");
+    }
   }
 }
 
@@ -637,7 +658,7 @@ void adsDecide() {
   if (level == POS) {
     level = NEG;
     if (voltage < posMin) {
-        is_working = false;
+        is_working[ADS1115] = false;
         status = VERDICT;
     } else {
       Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
@@ -647,7 +668,7 @@ void adsDecide() {
     status = VERDICT;
     Serial.println("Test complete.");
     if (voltage > negMax) {
-      is_working = false;
+      is_working[ADS1115] = false;
     }
   }
 }
@@ -719,12 +740,12 @@ void lisDecide() {
 void lisVerdict() {
   if (direction == Z) {
     if (abs(maxVals[Z]) < 10.0) {
-      is_working = false;
+      is_working[LIS3DH] = false;
       status = VERDICT;
     }
   } else {
     if (abs(maxVals[direction]) < 2.0) {
-      is_working = false;
+      is_working[LIS3DH] = false;
       status = VERDICT;
     }
   }
@@ -791,7 +812,7 @@ void vlxDecide() {
   if (proximity == NEAR) {
     proximity = FAR;
     if (distance >= 250 || distance <= 50) {
-      is_working = false;
+      is_working[VL53L1X] = false;
       status = VERDICT;
     } else {
       Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
@@ -801,7 +822,7 @@ void vlxDecide() {
     status = VERDICT;
     Serial.println("Test complete.");
     if (distance < 1000) {
-      is_working = false;
+      is_working[VL53L1X] = false;
     }
   }
 }
@@ -816,7 +837,7 @@ void sdInitialize() {
   // Alert user if sensor fails to connect
   if (!SD.begin(chipSelect)) {
     Serial.println("initialization failed!");
-    is_working = false;
+    is_working[BREAKOUT] = false;
     while(1); // REMOVE THIS IN MERGED CODE FILES
   }
 
@@ -862,7 +883,7 @@ void sdDecide() {
   }
 
   if (c == 'n') {
-    is_working = false;
+    is_working[BREAKOUT] = false;
   }
   status = VERDICT;
 }
@@ -925,7 +946,7 @@ void pecDecide() {
       status = WAITING;
       rotDir = CCW;
       if (!Encoded || EncoderValue <= 0) {
-        is_working = false;
+        is_working[PEC11] = false;
         status = VERDICT;
       } else {
         Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
@@ -936,7 +957,7 @@ void pecDecide() {
       status = VERDICT;
       Serial.println("Test complete.");
       if (!Encoded || EncoderValue >= 0) {
-        is_working = false;
+        is_working[PEC11] = false;
       }
     }
   }
@@ -953,7 +974,7 @@ void hallInitialize() {
   delay(2000);
   s_curr = digitalRead(hallPin);
   if (s_curr == 1) {
-    is_working = 0;
+    is_working[HALL] = false;
     Serial.println("Hall sensor gave false positive and is not working.");
     to_test[5] = false; // Indicate that this sensor has already been tested and is not working
   }
@@ -965,9 +986,9 @@ void hallPrompt() {
 
 void hallDecide() {
   if (s_curr != 1 & s_prev != 1) {
-    is_working = false;
+    is_working[HALL] = false;
   } else {
-    is_working = true;
+    is_working[HALL] = true;
   }
   status = VERDICT;
 }
@@ -1015,7 +1036,7 @@ void hcDecide() {
   if (proximity == NEAR) {
     proximity = FAR;
     if (hcDist >= 8 || hcDist <= 4) {
-      is_working = false;
+      is_working[HCSR04] = false;
       status = VERDICT;
     } else {
       Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
@@ -1025,7 +1046,7 @@ void hcDecide() {
     status = VERDICT;
     Serial.println("Test complete.");
     if (hcDist < 12) {
-      is_working = false;
+      is_working[HCSR04] = false;
     }
   }
 }
@@ -1043,7 +1064,7 @@ void adxlInitialize() {
     // Decide whether sensor is working based on offsets. x and y should be close to 0; z should be close to 9.81.
     if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || vals[2] > 11.0 || vals[2] < 7.0) {
       Serial.println("Sensor measurements do not match expected values.");
-      is_working = false;
+      is_working[ADXL335] = false;
       status = VERDICT;
       break;
     }
@@ -1085,7 +1106,7 @@ void adxlDecide() {
       status = WAITING;
       adxlVerdict();
       direction = (Axis)(direction + 1);
-      if (is_working == true) {
+      if (is_working[ADXL335] == true) {
         Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
       }
     }
@@ -1096,11 +1117,11 @@ void adxlDecide() {
 void adxlVerdict() {
   if (direction == Z) {
     if (fabs(maxVals[Z]) < 2.0) {
-      is_working = false;
+      is_working[ADXL335] = false;
     }
   } else {
     if (fabs(maxVals[direction]) < 2.0) {
-      is_working = false;
+      is_working[ADXL335] = false;
       status = VERDICT;
     }
   }
@@ -1117,7 +1138,7 @@ void strainPrompt() {
 void strainDecide() {
   status = VERDICT;
   if (rawValue < 1023) {
-    is_working = false;
+    is_working[STRAIN] = false;
   }
 }
 
@@ -1158,7 +1179,7 @@ void windDecide() {
     windTest = BLOW;
     status = WAITING;
     if (fabs(temp - baseTemp) < 10) {
-      is_working = false;
+      is_working[WIND] = false;
       status = VERDICT;
     } else {
       Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
@@ -1166,7 +1187,7 @@ void windDecide() {
   } else {
     status = VERDICT;
     if (fabs(wind - baseWind) < 10) {
-      is_working = false;
+      is_working[WIND] = false;
     }
   }
 }
@@ -1203,6 +1224,6 @@ void loadRead() {
 void loadDecide() {
   status = VERDICT;
   if (fabs(maxLoad - baseLoad) < 1000) {
-    is_working = false;
+    is_working[LOAD] = false;
   }
 }
