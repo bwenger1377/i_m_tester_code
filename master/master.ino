@@ -632,10 +632,10 @@ bool adsInitialize() {
 // Instruct user on how to test ADS1115
 void adsPrompt() {
   if (level == POS) {
-    Serial.println("Beginning test. Turn bench power supply on and set to 5.1 V. Then connect the positive lead to the A0 pin.");
+    Serial.println("Beginning ADS1115 test. Turn bench power supply on and set to 5.1 V. Then connect the positive lead to the A0 pin.");
     Serial.println("Press SPACE + ENTER to conclude test.");
   } else {
-    Serial.println("Beginning test. First, turn off the power supply.");
+    Serial.println("Beginning second ADS1115 test. First, turn off the power supply.");
     Serial.println("Connect the banana plug between the + and GND terminals of the bench power supply. Turn power supply back on and set to 0.5 V.");
     Serial.println("Then connect the grounded terminal to GND, and the - terminal of the power supply to the A0 pin on the ADS1115.");
     Serial.println("Press SPACE + ENTER to conclude test.");
@@ -782,9 +782,9 @@ void vlxInitialize() {
 
 void vlxPrompt() {
   if (proximity == NEAR) {
-    Serial.println("Beginning test. Place hand 6 inches above VL53L1X, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning VL53L1X test. Place hand 6 inches above VL53L1X, then press SPACE + ENTER to conclude test.");
   } else {
-    Serial.println("Beginning test. Remove hand from above VL53L1X, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning second VL53L1X test. Remove hand from above VL53L1X, then press SPACE + ENTER to conclude test.");
   }
 }
 
@@ -909,9 +909,9 @@ void pecInitialize() {
 // Provide instructions to user for testing
 void pecPrompt() {
   if (rotDir == CW) { // prompt the user based on the direction of encoder rotation
-    Serial.println("Beginning test. Slowly rotate the encoder a few clicks clockwise, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning PEC11 test. Slowly rotate the encoder a few clicks clockwise, then press SPACE + ENTER to conclude test.");
   } else {
-    Serial.println("Beginning test. Slowly rotate the encoder a few clicks counterclockwise, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning PEC11 test. Slowly rotate the encoder a few clicks counterclockwise, then press SPACE + ENTER to conclude test.");
   }
 }
 
@@ -970,18 +970,18 @@ void hallInitialize() {
   pinMode(hallPin,INPUT);
 
   // Read initial sensor value to screen for false positives
-  Serial.println("Hold magnet away from sensor.");
+  Serial.println("Hold magnet away from SY-M213.");
   delay(2000);
   s_curr = digitalRead(hallPin);
   if (s_curr == 1) {
     is_working[HALL] = false;
-    Serial.println("Hall sensor gave false positive and is not working.");
+    Serial.println("SY-M213 gave false positive and is not working.");
     to_test[5] = false; // Indicate that this sensor has already been tested and is not working
   }
 }
 
 void hallPrompt() {
-  Serial.println("Place and hold a magnet next to the BJT, then press SPACE + ENTER to conclude test.");
+  Serial.println("Place and hold a magnet next to the SY-M213 next to the BJT on the back side of the board, then press SPACE + ENTER to conclude test.");
 }
 
 void hallDecide() {
@@ -1005,9 +1005,9 @@ void hcInitialize() {
 // Give instructions to user and prompt them to begin testing
 void hcPrompt() {
   if (proximity == NEAR) {
-    Serial.println("Beginning test. Place hand 6 inches in front of sensor, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning HC-SR04 test. Place hand 6 inches in front of HC-SR04, then press SPACE + ENTER to conclude test.");
   } else {
-    Serial.println("Beginning test. Remove hand, then press SPACE + ENTER to conclude test.");
+    Serial.println("Beginning second HC-SR04 test. Remove hand, then press SPACE + ENTER to conclude test.");
   }
 }
 
@@ -1158,9 +1158,9 @@ void windInitialize() {
 // Provide user instruction for wind sensor test
 void windPrompt() {
   if (windTest == TEMP) {
-    Serial.println("Beginning test. Hold the fins at the end of the sensor with thumb and forefinger, then press SPACE + ENTER.");
+    Serial.println("Beginning wind sensor test. Hold the fins at the end of the sensor with thumb and forefinger, then press SPACE + ENTER.");
   } else {
-    Serial.println("Beginning test. Blow on the fins at the end of the sensor, then press SPACE + ENTER.");
+    Serial.println("Beginning second wind sensor test. Blow on the fins at the end of the sensor, then press SPACE + ENTER.");
   }
 }
 
@@ -1207,7 +1207,7 @@ void loadInitialize() {
 
 // Provide user instruction for load cell test
 void loadPrompt() {
-  Serial.println("Hold load cell with thumbs on the same side as the screw tops, then bend the load cell.");
+  Serial.print("Hold load cell with thumbs on the same side as the screw tops, then bend the load cell. ");
   Serial.println("Press SPACE + ENTER to conclude test.");
 }
 
