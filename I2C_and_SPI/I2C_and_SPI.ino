@@ -71,7 +71,7 @@ Sensors:
     - hcPrompt()
     - hcRead()
     - hcDecide()
-8. ADXL335 3-Axis Accelerometer
+8. ADXL335 3-Axis Accelerometer (ADXL335)
   a) Wiring instructions:
     - Xout, Yout, Zout --> Arduino analog pins
   b) Related functions:
@@ -81,11 +81,35 @@ Sensors:
     - adxlRead()
     - adxlDecide()
     - adxlVerdict()
-9. Runeskee Strain Gauge
+9. Runeskee Strain Gauge (STRAIN)
   a) Wiring instructions:
     - A0 --> Arduino analog pin
   b) Related functions:
-    - 
+    - strainPrompt()
+    - strainDecide()
+10. Modern Device Wind Sensor Rev C (WIND)
+  a) Wiring instructions:
+    - TMP --> Arduino analog pin
+    - RV --> Arduino analog pin
+  b) Related functions:
+    - windInitialize()
+    - windPrompt()
+    - windRead()
+    - windDecide()
+11. HX711 Load Cell Amplifier (LOAD)
+  a) Wiring instructions:
+    - RED --> TAL220 red wire
+    - BLK --> TAL220 black wire
+    - WHT --> TAL220 white wire
+    - GRN --> TAL220 green wire
+    - VCC --> Arduino 5V
+    - DAT --> Arduino digital pin
+    - CLK --> Arduino digital pin
+  b) Related functions:
+    - loadInitialize()
+    - loadPrompt()
+    - loadRead()
+    - loadDecide()
 */
 
 // ============================================================================================================ LIBRARIES ============================================================================================================ //
@@ -106,6 +130,10 @@ Sensors:
 // ------------------------------ SD Card Breakout Board + ------------------------------ //
 #include <SPI.h>
 #include <SD.h>
+
+// ------------------------------ LOAD ------------------------------ //
+
+#include <Adafruit_HX711.h>
 
 // ============================================================================================================ VARIABLES ============================================================================================================ //
 
@@ -249,6 +277,36 @@ const int strainPin = A0; // Analog pin for module output
 // Reading variable
 int rawValue = 0; // Variable to store raw reading
 
+// ------------------------------ WIND ------------------------------ //
+
+// Pin assignments
+const int pinRV  = A8;  // Wind analog output
+const int pinTMP = A9;  // Temperature analog output
+
+// Reading/measurement variables
+int wind = 0; // Analog measurement from pinRV
+int temp = 0; // Analog measurement from pinTMP
+int baseWind = 0; // Baseline wind measurement
+int baseTemp = 0; // Baseline temperature measurement
+
+// Indicates which test is being performed on the wind sensor
+enum WindTest {TEMP,BLOW};
+WindTest windTest = TEMP;
+
+// ------------------------------ LOAD ------------------------------ //
+
+// Pin assignments
+const int LOADCELL_DOUT_PIN = 45;
+const int LOADCELL_SCK_PIN = 47;
+
+// Measurement variables
+int32_t load;
+int32_t maxLoad;
+int32_t baseLoad;
+
+// Scale the amplifier output
+Adafruit_HX711 scale(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+
 // ============================================================================================================ SETUP ============================================================================================================ //
 void setup() {
   // Begin serial communication
@@ -292,6 +350,14 @@ void setup() {
           case ADXL335:
             adxlInitialize();
             break;
+          case STRAIN:
+            break;
+          case WIND:
+            windInitialize();
+            break;
+          case LOAD:
+            loadInitialize();
+            break;
         }
         if (is_working) {
           printSensor(); 
@@ -308,7 +374,6 @@ void setup() {
     }
   }
 
-  Serial.println(all_tested);
   nextSensor(); // Set the sensor to be tested
 
   // Prompt user input to begin testing
@@ -327,14 +392,16 @@ void loop() {
             status = READING; // will execute code in second case next time loop repeats
             switch (sensor) {
               // Provide instructions for sensor testing and prompt the user to begin the test
-              case ADS1115: adsPrompt(); break;
-              case LIS3DH: accelPrompt(); break;
-              case VL53L1X: vlxPrompt(); break;
-              case PEC11: pecPrompt(); break;
-              case HALL: hallPrompt(); break;
-              case HCSR04: hcPrompt(); break;
-              case ADXL335: accelPrompt(); break;
-              case STRAIN: strainPrompt(); break;
+              case ADS1115: adsPrompt();    break;
+              case LIS3DH:  accelPrompt();  break;
+              case VL53L1X: vlxPrompt();    break;
+              case PEC11:   pecPrompt();    break;
+              case HALL:    hallPrompt();   break;
+              case HCSR04:  hcPrompt();     break;
+              case ADXL335: accelPrompt();  break;
+              case STRAIN:  strainPrompt(); break;
+              case WIND:    windPrompt();   break;
+              case LOAD:    loadPrompt();   break;
             }
           }
           break;
@@ -360,16 +427,7 @@ void loop() {
               updateMax();
 
               if (c == ' ') {
-                if (direction == Z) {
-                  status = VERDICT;
-                  Serial.println("Testing complete.");
-                  lisVerdict();
-                } else {
-                  status = WAITING;
-                  Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
-                  lisVerdict();
-                  direction = (Axis)(direction + 1);
-                }
+                lisDecide();
               }
               break;
             case VL53L1X:
@@ -411,10 +469,24 @@ void loop() {
               break;
             case STRAIN:
               rawValue = analogRead(strainPin);
-              Serial.print("Raw value: "); Serial.println(rawValue);
+              // Serial.print("Raw value: "); Serial.println(rawValue); keep for debugging
 
               if (c == ' ') {
                 strainDecide();
+              }
+              break;
+            case WIND:
+              windRead();
+
+              if (c == ' ') {
+                windDecide();
+              }
+              break;
+            case LOAD:
+              loadRead();
+
+              if (c == ' ') {
+                loadDecide();
               }
           }
           break;
@@ -626,6 +698,20 @@ void lisRead() {
 void updateMax() {
   if (vals[direction] > maxVals[direction]) {
     maxVals[direction] = vals[direction];
+  }
+}
+
+// Decide whether LIS3DH is working
+void lisDecide() {
+  if (direction == Z) {
+    status = VERDICT;
+    Serial.println("Testing complete.");
+    lisVerdict();
+  } else {
+    status = WAITING;
+    Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+    lisVerdict();
+    direction = (Axis)(direction + 1);
   }
 }
 
@@ -953,8 +1039,6 @@ void adxlInitialize() {
   for (int ii = 0; ii < 400; ii++) {
     // Get a new sensor reading with normalized accelerations
     adxlRead();
-
-    Serial.println(vals[0]); // for debugging
     
     // Decide whether sensor is working based on offsets. x and y should be close to 0; z should be close to 9.81.
     if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || vals[2] > 11.0 || vals[2] < 7.0) {
@@ -1033,6 +1117,92 @@ void strainPrompt() {
 void strainDecide() {
   status = VERDICT;
   if (rawValue < 1023) {
+    is_working = false;
+  }
+}
+
+// ------------------------------ WIND ------------------------------ //
+
+// Initialize wind sensor
+void windInitialize() {
+  // Set pin modes
+  pinMode(pinRV,INPUT);
+  pinMode(pinTMP,INPUT);
+
+  // Get baseline values for wind and temp
+  baseWind = analogRead(pinRV);
+  baseTemp = analogRead(pinTMP);
+}
+
+// Provide user instruction for wind sensor test
+void windPrompt() {
+  if (windTest == TEMP) {
+    Serial.println("Beginning test. Hold the fins at the end of the sensor with thumb and forefinger, then press SPACE + ENTER.");
+  } else {
+    Serial.println("Beginning test. Blow on the fins at the end of the sensor, then press SPACE + ENTER.");
+  }
+}
+
+// Read from the wind sensor
+void windRead() {
+  if (windTest == TEMP) {
+    temp = analogRead(pinTMP);
+  } else {
+    wind = analogRead(pinRV);
+  }
+}
+
+// Decide whether the wind sensor is working
+void windDecide() {
+  if (windTest == TEMP) {
+    windTest = BLOW;
+    status = WAITING;
+    if (fabs(temp - baseTemp) < 10) {
+      is_working = false;
+      status = VERDICT;
+    } else {
+      Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+    }
+  } else {
+    status = VERDICT;
+    if (fabs(wind - baseWind) < 10) {
+      is_working = false;
+    }
+  }
+}
+
+// ------------------------------ LOAD ------------------------------ //
+
+// Initialize load sensor
+void loadInitialize() {
+  scale.begin(); // Initialize amplifier connection
+
+  // Get baseline loading data
+  Serial.print("Do not touch load cell. Initializing...");
+  delay(1000);
+  baseLoad = scale.readChannelBlocking(CHAN_A_GAIN_128);
+  Serial.println(" done.");
+}
+
+// Provide user instruction for load cell test
+void loadPrompt() {
+  Serial.println("Hold load cell with thumbs on the same side as the screw tops, then bend the load cell.");
+  Serial.println("Press SPACE + ENTER to conclude test.");
+}
+
+// Read from the HX711
+void loadRead() {
+  load = scale.readChannelBlocking(CHAN_A_GAIN_128);
+  if (load > maxLoad) {
+    maxLoad = load;
+  }
+  delay(1);
+}
+
+// Decide whether the HX711 is working
+void loadDecide() {
+  status = VERDICT;
+  if (fabs(maxLoad - baseLoad) < 1000) {
     is_working = false;
   }
 }
