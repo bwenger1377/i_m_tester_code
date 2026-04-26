@@ -143,7 +143,7 @@ Sensors:
 enum State {WAITING,READING,VERDICT};
 State status = WAITING;
 
-char c; // Character inputted to the serial monitor by the user
+char c = '\0'; // Character inputted to the serial monitor by the user
 
 // True if sensor is working
 bool is_working[11] = {true,true,true,true,true,true,true,true,true,true,true};
@@ -251,7 +251,6 @@ const int hallPin = 49;   // substitute for digital pin connected to SY-M213 out
 
 // Sensor reading variables
 int s_curr = 0; // Current sensor reading
-int s_prev = 0; // Previous sensor reading
 
 // ------------------------------ HC-SR04 ------------------------------ //
 
@@ -275,8 +274,9 @@ const int zPin = A7;
 // Pin assignment
 const int strainPin = A0; // Analog pin for module output
 
-// Reading variable
+// Reading variables
 int rawValue = 0; // Variable to store raw reading
+int baseStrain = 0; // Base measurement for strain
 
 // ------------------------------ WIND ------------------------------ //
 
@@ -352,6 +352,7 @@ void setup() {
             adxlInitialize();
             break;
           case STRAIN:
+            strainInitialize();
             break;
           case WIND:
             windInitialize();
@@ -729,8 +730,7 @@ void lisDecide() {
     Serial.println("Testing complete.");
     lisVerdict();
   } else {
-    status = WAITING;
-    Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
+    status = READING;
     lisVerdict();
     direction = (Axis)(direction + 1);
   }
@@ -941,8 +941,8 @@ void UpdateEncoder() {
 
 // Decide if the encoder is working
 void pecDecide() {
-  if (rotDir == CW) {
-    if (c == ' ') {
+  if (c == ' ') {
+    if (rotDir == CW) {
       status = WAITING;
       rotDir = CCW;
       if (!Encoded || EncoderValue <= 0) {
@@ -951,20 +951,21 @@ void pecDecide() {
       } else {
         Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
       }
-    }
-  } else {
-    if (c == ' ') {
+    } else {
       status = VERDICT;
       Serial.println("Test complete.");
       if (!Encoded || EncoderValue >= 0) {
         is_working[PEC11] = false;
       }
+      detachInterrupt(0);
+      detachInterrupt(1);
     }
   }
 }
 
 // ------------------------------ HALL ------------------------------ //
 
+// Initialize hall effect sensor
 void hallInitialize() {
   // Set pin modes
   pinMode(hallPin,INPUT);
@@ -980,16 +981,14 @@ void hallInitialize() {
   }
 }
 
+// Prompt user to begin SY-M213 test
 void hallPrompt() {
   Serial.println("Place and hold a magnet next to the SY-M213 next to the BJT on the back side of the board, then press SPACE + ENTER to conclude test.");
 }
 
+// Decide whether SY-M213 is working
 void hallDecide() {
-  if (s_curr != 1 & s_prev != 1) {
-    is_working[HALL] = false;
-  } else {
-    is_working[HALL] = true;
-  }
+  is_working[HALL] = (s_curr == 1);
   status = VERDICT;
 }
 
@@ -1002,7 +1001,7 @@ void hcInitialize() {
   pinMode(echo_pin, INPUT);
 }
 
-// Give instructions to user and prompt them to begin testing
+// Prompt user to begin HC-SR04 test
 void hcPrompt() {
   if (proximity == NEAR) {
     Serial.println("Beginning HC-SR04 test. Place hand 6 inches in front of HC-SR04, then press SPACE + ENTER to conclude test.");
@@ -1031,7 +1030,7 @@ void hcRead() {
   }
 }
 
-// Decide whether the HC-SR04 is working
+// Decide whether HC-SR04 is working
 void hcDecide() {
   if (proximity == NEAR) {
     proximity = FAR;
@@ -1053,7 +1052,7 @@ void hcDecide() {
 
 // ------------------------------ ADXL335 ------------------------------ //
 
-// Initialize accelerometer
+// Initialize ADXL335
 void adxlInitialize() {
   Serial.println("Measuring initial accelerations. Keep board on a flat surface...");
   delay(3000); // Give the user a chance to set the board down
@@ -1073,7 +1072,7 @@ void adxlInitialize() {
   }
 }
 
-// Read from accelerometer
+// Read from ADXL335
 void adxlRead() {
   // Read raw analog values
   int rawX = analogRead(xPin);
@@ -1091,7 +1090,7 @@ void adxlRead() {
   vals[2] = 9.81*(map(zVolt, 0, 3300, -5000, 5000)/1000.0);
 }
 
-// Decide whether the accelerometer is working
+// Decide whether ADXL335 is working
 void adxlDecide() {
   if (direction == Z) {
     if (c == ' ') {
@@ -1103,17 +1102,14 @@ void adxlDecide() {
   } else {
     if (c == ' ') {
       //Serial.println(fabs(maxVals[direction]));
-      status = WAITING;
+      status = READING;
       adxlVerdict();
       direction = (Axis)(direction + 1);
-      if (is_working[ADXL335] == true) {
-        Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
-      }
     }
   }
 }
 
-// Decide whether the accelerometer is working
+// Decide whether ADXL335 is working
 void adxlVerdict() {
   if (direction == Z) {
     if (fabs(maxVals[Z]) < 2.0) {
@@ -1134,10 +1130,19 @@ void strainPrompt() {
   Serial.println("Beginning test. Lightly bend the strain gauge toward the side with the solder beads, then press SPACE + ENTER to conclude test.");
 }
 
+// Initialize strain gauge
+void strainInitialize() {
+  // Get baseline strain data
+  Serial.print("Do not touch strain gauge. Initializing...");
+  delay(1000);
+  baseStrain = analogRead(strainPin);
+  Serial.println(" done.");
+}
+
 // Decide whether the strain gauge is working
 void strainDecide() {
   status = VERDICT;
-  if (rawValue < 1023) {
+  if (abs(rawValue - baseStrain) < 5) {
     is_working[STRAIN] = false;
   }
 }
