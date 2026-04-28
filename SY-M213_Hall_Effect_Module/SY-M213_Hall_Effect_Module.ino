@@ -1,12 +1,12 @@
-// Functionality Test Code for SY-M213 Hall Effect Module
 // Written by Benjamin Wenger on 2-3-26
-// Last Revision 4-20-26
+// Last Revision 4-28-26
+// Functionality Test Code for SY-M213 Hall Effect Module
 
 //Confirm that the presence of a magnet changes the digital pin reading on the Arduino. 
 //If the reading does not change after prompting the user to put a magnet near the BJT at the top, then the sensor is defective.
 
 // Declare pin number
-const int hallPin = 2;   // substitute for digital pin connected to SY-M213 output
+const int hallPin = 49;   // substitute for digital pin connected to SY-M213 output
 
 // Sensor reading variables
 int s_curr = 0; // Current sensor reading

@@ -1061,7 +1061,7 @@ void adxlInitialize() {
     adxlRead();
     
     // Decide whether sensor is working based on offsets. x and y should be close to 0; z should be close to 9.81.
-    if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || vals[2] > 11.0 || vals[2] < 7.0) {
+    if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || fabs(vals[2]) > 11.0 || fabs(vals[2]) < 7.0) {
       Serial.println("Sensor measurements do not match expected values.");
       is_working[ADXL335] = false;
       status = VERDICT;
@@ -1084,7 +1084,7 @@ void adxlRead() {
   float yVolt = map(rawY, 0,1023,0,5000);
   float zVolt = map(rawZ, 0,1023,0,5000);
 
-  // Convert voltage to acceleration in g
+  // Convert voltage to acceleration in m/s^2
   vals[0] = 9.81*(map(xVolt, 0, 3300, -5000, 5000)/1000.0);
   vals[1] = 9.81*(map(yVolt, 0, 3300, -5000, 5000)/1000.0);
   vals[2] = 9.81*(map(zVolt, 0, 3300, -5000, 5000)/1000.0);

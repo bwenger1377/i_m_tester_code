@@ -6,8 +6,8 @@
 // If the code does not see significant changes after prompting movements, it should tell the user that the sensor is defective.
 
 const int xPin = A5;
-const int yPin = A4;
-const int zPin = A3;
+const int yPin = A6;
+const int zPin = A7;
 
 // Sensor reading variables
 float vals[3] = {0,0,0}; // x,y,z
@@ -36,10 +36,10 @@ void setup() {
     // Get a new sensor reading with normalized accelerations
     adxlRead();
 
-    Serial.println(vals[0]); // for debugging
+    // Serial.println(vals[2]); // for debugging
     
     // Decide whether sensor is working based on offsets. x and y should be close to 0; z should be close to 9.81.
-    if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || vals[2] > 11.0 || vals[2] < 7.0) {
+    if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || fabs(vals[2]) > 11.0 || fabs(vals[2]) < 7.0) {
       Serial.println("Sensor measurements do not match expected values.");
       is_working = false;
       status = VERDICT;
@@ -132,7 +132,7 @@ void adxlRead() {
   float yVolt = map(rawY, 0,1023,0,5000);
   float zVolt = map(rawZ, 0,1023,0,5000);
 
-  // Convert voltage to acceleration in g
+  // Convert voltage to acceleration in m/s^2
   vals[0] = 9.81*(map(xVolt, 0, 3300, -5000, 5000)/1000.0);
   vals[1] = 9.81*(map(yVolt, 0, 3300, -5000, 5000)/1000.0);
   vals[2] = 9.81*(map(zVolt, 0, 3300, -5000, 5000)/1000.0);
@@ -148,7 +148,7 @@ void updateMax() {
 // Function that decides whether the sensor is working
 void adxlVerdict() {
   if (direction == Z) {
-    if (fabs(maxVals[Z]) < 2.0) {
+    if (fabs(maxVals[Z]) < 11.0) {
       is_working = false;
     }
   } else {
