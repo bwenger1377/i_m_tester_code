@@ -1219,7 +1219,7 @@ void loadPrompt() {
 // Read from the HX711
 void loadRead() {
   load = scale.readChannelBlocking(CHAN_A_GAIN_128);
-  if (load > maxLoad) {
+  if ((load > maxLoad) && (load != 0)) {
     maxLoad = load;
   }
   delay(1);
@@ -1228,7 +1228,9 @@ void loadRead() {
 // Decide whether the HX711 is working
 void loadDecide() {
   status = VERDICT;
-  if (fabs(maxLoad - baseLoad) < 1000) {
+  Serial.println(maxLoad);
+  Serial.println(baseLoad);
+  if (fabs(maxLoad) - fabs(baseLoad) < 5000) {
     is_working[LOAD] = false;
   }
 }

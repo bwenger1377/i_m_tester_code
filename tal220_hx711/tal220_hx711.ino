@@ -69,9 +69,15 @@ void loadInitialize() {
 
   // Get baseline loading data
   Serial.print("Do not touch load cell. Initializing...");
-  delay(1000);
   baseLoad = scale.readChannelBlocking(CHAN_A_GAIN_128);
-  Serial.println(" done.");
+  delay(1000);
+  if (abs(baseLoad - scale.readChannelBlocking(CHAN_A_GAIN_128)) > 300) {
+    is_working = false;
+    status = VERDICT;
+    Serial.println(" load cell data varies excessively.");
+  } else {
+    Serial.println(" done.");
+  }
 }
 
 // Provide user instruction for load cell test
@@ -83,7 +89,7 @@ void loadPrompt() {
 // Read from the HX711
 void loadRead() {
   load = scale.readChannelBlocking(CHAN_A_GAIN_128);
-  if (load > maxLoad) {
+  if ((load > maxLoad) && (load != 0)) {
     maxLoad = load;
   }
   delay(1);
@@ -92,7 +98,7 @@ void loadRead() {
 // Decide whether the HX711 is working
 void loadDecide() {
   status = VERDICT;
-  if (fabs(maxLoad - baseLoad) < 1000) {
+  if (fabs(maxLoad) - fabs(baseLoad) < 5000) {
     is_working = false;
   }
 }
@@ -100,11 +106,11 @@ void loadDecide() {
 // Give a verdict on sensor functionality
 void giveVerdict() {
   if (!printedSucc) {
-    if (is_working) {
-      Serial.println("Strain gauge is working.");
+    if (is_working) { 
+      Serial.println("HX711 is working.");
       printedSucc = true;
     } else {
-      Serial.println("Strain gauge is not working.");
+      Serial.println("HX711 is not working.");
       printedFail = true;
     }
   }
