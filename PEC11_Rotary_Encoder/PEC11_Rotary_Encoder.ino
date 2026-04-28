@@ -69,7 +69,7 @@ void loop() {
           if (spacePressed()) {
             status = WAITING;
             rotDir = CCW;
-            Serial.println("Test complete.");
+            Serial.println("Test complete. Press SPACE + ENTER to begin next test.");
             if (!Encoded || EncoderValue <= 0) {
               is_working = false;
               status = VERDICT;

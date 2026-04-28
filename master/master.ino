@@ -739,7 +739,7 @@ void lisDecide() {
 // Decide whether LIS3DH is working
 void lisVerdict() {
   if (direction == Z) {
-    if (abs(maxVals[Z]) < 10.0) {
+    if (abs(maxVals[Z]) < 11.0) {
       is_working[LIS3DH] = false;
       status = VERDICT;
     }
@@ -1034,7 +1034,7 @@ void hcRead() {
 void hcDecide() {
   if (proximity == NEAR) {
     proximity = FAR;
-    if (hcDist >= 8 || hcDist <= 4) {
+    if (hcDist >= 8 || hcDist <= 3) {
       is_working[HCSR04] = false;
       status = VERDICT;
     } else {

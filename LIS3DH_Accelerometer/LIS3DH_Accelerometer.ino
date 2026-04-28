@@ -72,13 +72,13 @@ void loop() {
           switch (direction) {
             // Test x,y,z directions in that order to ensure all are working.
             case X: // x-direction
-              Serial.println("Move shield rapidly forward and backward.");
+              Serial.println("Move shield rapidly forward and backward, then press SPACE + ENTER to conclude testing.");
               break;
             case Y: // y-direction
-              Serial.println("Move shield rapidly from left to right.");
+              Serial.println("Move shield rapidly from left to right, then press SPACE + ENTER to conclude testing.");
               break;
             case Z: // z-direction
-              Serial.println("Move board rapidly upward and downward.");
+              Serial.println("Move board rapidly upward and downward, then press SPACE + ENTER to conclude testing.");
               break;
           }
         }
@@ -162,7 +162,7 @@ void lisUpdateMax() {
 // Function that decides whether the sensor is working
 void lisVerdict() {
   if (direction == Z) {
-    if (abs(maxVals[Z]) < 10.0) {
+    if (abs(maxVals[Z]) < 11.0) {
       is_working = false;
       status = VERDICT;
     }

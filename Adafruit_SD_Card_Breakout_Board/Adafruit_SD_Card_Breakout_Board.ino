@@ -12,7 +12,7 @@ Will write something to the card, then read it from the card and ensure that the
 #include <SD.h>
 
 // Declare assignment for chip select (CS) pin
-const int chipSelect = 10;
+const int chipSelect = 53;
 
 // State of loop operations
 enum State {WAITING, TESTING, VERDICT};

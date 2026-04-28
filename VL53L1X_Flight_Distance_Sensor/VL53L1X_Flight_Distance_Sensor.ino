@@ -121,16 +121,8 @@ void vlxRead() {
     // new measurement for the taking!
     distance = vlx.distance();
     if (distance == -1) {
-      // something went wrong!
-      Serial.print(F("Couldn't get distance: "));
-      Serial.println(vlx.vl_status);
       return;
     }
-    // Serial.print(F("Distance: "));
-    // Serial.print(distance);
-    // Serial.println(" mm");
-
-    // data is read out, time for another reading!
     vlx.clearInterrupt();
   }
 }
