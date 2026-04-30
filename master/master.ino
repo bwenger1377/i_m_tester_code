@@ -322,7 +322,7 @@ void setup() {
     while ((c != 'y') && (c != 'n')) {
       c = charPressed();
       if (c == 'y') { 
-        to_test[sensor] = 1;
+        to_test[sensor] = true;
         switch (sensor) {
           case ADS1115: 
             if (!adsInitialize()) {

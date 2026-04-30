@@ -36,6 +36,7 @@ void setup() {
 
   // Initialize the ADS1115
   if (!adsInitialize()) {
+    Serial.println("ADS1115 could not be initialized. Sensor may not be working; check for short between Vcc and GND pins.");
     while(1); // Stop any further code from executing
   }
 
