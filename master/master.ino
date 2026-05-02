@@ -207,8 +207,8 @@ Axis direction = X;
 // ------------------------------ VL53L1X ------------------------------ //
 
 // Additional pin assignments
-#define IRQ_PIN 4
-#define XSHUT_PIN 5
+#define IRQ_PIN 45
+#define XSHUT_PIN 47
 
 // VL53L1X object (default I2C address 0x29)
 Adafruit_VL53L1X vlx = Adafruit_VL53L1X(XSHUT_PIN, IRQ_PIN);
@@ -266,8 +266,8 @@ float hcDist = 0.0;
 
 // Pin assignments
 const int xPin = A5;
-const int yPin = A6;
-const int zPin = A7;
+const int yPin = A4;
+const int zPin = A3;
 
 // ------------------------------ STRAIN ------------------------------ //
 
@@ -281,8 +281,8 @@ int baseStrain = 0; // Base measurement for strain
 // ------------------------------ WIND ------------------------------ //
 
 // Pin assignments
-const int pinRV  = A8;  // Wind analog output
-const int pinTMP = A9;  // Temperature analog output
+const int pinRV  = A2;  // Wind analog output
+const int pinTMP = A1;  // Temperature analog output
 
 // Reading/measurement variables
 int wind = 0; // Analog measurement from pinRV
@@ -297,8 +297,8 @@ WindTest windTest = TEMP;
 // ------------------------------ LOAD ------------------------------ //
 
 // Pin assignments
-const int LOADCELL_DOUT_PIN = 45;
-const int LOADCELL_SCK_PIN = 47;
+const int LOADCELL_DOUT_PIN = 44;
+const int LOADCELL_SCK_PIN = 42;
 
 // Measurement variables
 int32_t load;
@@ -747,6 +747,7 @@ void lisVerdict() {
     if (abs(maxVals[direction]) < 2.0) {
       is_working[LIS3DH] = false;
       status = VERDICT;
+      Serial.println(direction);
     }
   }
 }
@@ -1064,7 +1065,6 @@ void adxlInitialize() {
     if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || fabs(vals[2]) > 11.0 || fabs(vals[2]) < 7.0) {
       Serial.println("Sensor measurements do not match expected values.");
       is_working[ADXL335] = false;
-      status = VERDICT;
       break;
     }
     // Short delay

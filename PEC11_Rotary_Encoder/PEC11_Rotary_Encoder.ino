@@ -87,6 +87,7 @@ void loop() {
         break;
       case VERDICT:
         if (!printedSucc) {
+          Serial.println(EncoderValue);
           if (is_working) {
             Serial.println("PEC11 Rotary Encoder is working.");
             printedSucc = true;
