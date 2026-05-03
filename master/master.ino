@@ -733,6 +733,10 @@ void lisDecide() {
     status = READING;
     lisVerdict();
     direction = (Axis)(direction + 1);
+    accelPrompt();
+  }
+  if (!is_working[LIS3DH]) {
+    status = VERDICT;
   }
 }
 
@@ -741,13 +745,10 @@ void lisVerdict() {
   if (direction == Z) {
     if (abs(maxVals[Z]) < 11.0) {
       is_working[LIS3DH] = false;
-      status = VERDICT;
     }
   } else {
     if (abs(maxVals[direction]) < 2.0) {
       is_working[LIS3DH] = false;
-      status = VERDICT;
-      Serial.println(direction);
     }
   }
 }
@@ -795,16 +796,8 @@ void vlxRead() {
     // new measurement for the taking!
     distance = vlx.distance();
     if (distance == -1) {
-      // something went wrong!
-      Serial.print(F("Couldn't get distance: "));
-      Serial.println(vlx.vl_status);
       return;
     }
-    // Serial.print(F("Distance: "));
-    // Serial.print(distance);
-    // Serial.println(" mm");
-
-    // data is read out, time for another reading!
     vlx.clearInterrupt();
   }
 }
@@ -1056,20 +1049,8 @@ void hcDecide() {
 // Initialize ADXL335
 void adxlInitialize() {
   Serial.println("Measuring initial accelerations. Keep board on a flat surface...");
-  delay(3000); // Give the user a chance to set the board down
-  for (int ii = 0; ii < 400; ii++) {
-    // Get a new sensor reading with normalized accelerations
+    // Get baseline accelerations in all directions
     adxlRead();
-    
-    // Decide whether sensor is working based on offsets. x and y should be close to 0; z should be close to 9.81.
-    if (fabs(vals[0]) > 1.0 || fabs(vals[1]) > 1.0 || fabs(vals[2]) > 11.0 || fabs(vals[2]) < 7.0) {
-      Serial.println("Sensor measurements do not match expected values.");
-      is_working[ADXL335] = false;
-      break;
-    }
-    // Short delay
-    delay(1);
-  }
 }
 
 // Read from ADXL335
@@ -1105,6 +1086,7 @@ void adxlDecide() {
       status = READING;
       adxlVerdict();
       direction = (Axis)(direction + 1);
+      accelPrompt();
     }
   }
 }
